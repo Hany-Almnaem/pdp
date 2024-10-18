@@ -511,11 +511,40 @@ contract ProofBuilderHelper is Test {
     }
 }
 
+// TestingRecordKeeperService is a PDPListener that allows any amount of proof challenges
+// to help with more flexible testing.
+contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
+
+    function proofSetCreated(uint256 proofSetId, address creator) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.CREATE, abi.encode(creator));
+    }
+
+    function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.DELETE, abi.encode(deletedLeafCount));
+    }
+
+    function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] calldata rootData) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.ADD, abi.encode(firstAdded, rootData));
+    }
+
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata rootIds) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
+    }
+
+    function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
+    }
+
+    function nextProvingPeriod(uint256 proofSetId, uint256 leafCount) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(leafCount));
+    }
+}
+
 contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     uint256 constant challengeFinalityDelay = 2;
     string constant cidPrefix = "CID";
     PDPVerifier pdpVerifier;
-    SimplePDPService listener;
+    PDPListener listener;
     ListenerHelper listenerAssert;
 
     function setUp() public {
@@ -526,10 +555,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));
+        listener = new TestingRecordKeeperService();
         listenerAssert = new ListenerHelper(address(listener));
     }
 

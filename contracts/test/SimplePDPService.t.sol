@@ -10,18 +10,18 @@ import {Cids} from "../src/Cids.sol";
 
 contract SimplePDPServiceTest is Test {
     SimplePDPService public pdpService;
-    address public pdpServiceAddress;
+    address public pdpVerifierAddress;
 
     function setUp() public {
-        pdpServiceAddress = address(this);
+        pdpVerifierAddress = address(this);
         SimplePDPService pdpServiceImpl = new SimplePDPService();
-        bytes memory initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpServiceAddress));
+        bytes memory initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifierAddress));
         MyERC1967Proxy pdpServiceProxy = new MyERC1967Proxy(address(pdpServiceImpl), initializeData);
         pdpService = SimplePDPService(address(pdpServiceProxy));
     }
 
     function testInitialState() public view {
-        assertEq(pdpService.pdpServiceAddress(), pdpServiceAddress, "PDP verifier address should be set correctly");
+        assertEq(pdpService.pdpVerifierAddress(), pdpVerifierAddress, "PDP verifier address should be set correctly");
     }
 
     function testAddRecord() public {
@@ -77,5 +77,101 @@ contract SimplePDPServiceTest is Test {
         uint256 proofSetId = 1;
         vm.expectRevert("Event index out of bounds");
         pdpService.getEvent(proofSetId, 0);
+    }
+
+    function testGetMaxProvingPeriod() public view {
+        uint64 maxPeriod = pdpService.getMaxProvingPeriod();
+        assertEq(maxPeriod, 2880, "Max proving period should be 2880");
+    }
+
+    function testGetChallengesPerProof() public view{
+        uint64 challenges = pdpService.getChallengesPerProof();
+        assertEq(challenges, 5, "Challenges per proof should be 5");
+    }
+}
+
+contract SimplePDPServiceFaultsTest is Test {
+    SimplePDPService public pdpService;
+    address public pdpVerifierAddress;
+
+    function setUp() public {
+        pdpVerifierAddress = address(this);
+        SimplePDPService pdpServiceImpl = new SimplePDPService();
+        bytes memory initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifierAddress));
+        MyERC1967Proxy pdpServiceProxy = new MyERC1967Proxy(address(pdpServiceImpl), initializeData);
+        pdpService = SimplePDPService(address(pdpServiceProxy));
+    }
+
+    function testPosessionProvenOnTime() public {
+        uint256 proofSetId = 1;
+        uint256 challengedLeafCount = 100;
+        uint256 seed = 12345;
+        uint256 challengeCount = 5;
+
+        // Set up the proving deadline
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        // Warp to just before the deadline
+        vm.warp(block.number + pdpService.getMaxProvingPeriod() - 1);
+        pdpService.posessionProven(proofSetId, challengedLeafCount, seed, challengeCount);
+        assertTrue(pdpService.provenThisPeriod(proofSetId));
+    }
+
+    function testPosessionProvenLate() public {
+        uint256 proofSetId = 1;
+        uint256 challengedLeafCount = 100;
+        uint256 seed = 12345;
+        uint256 challengeCount = 5;
+
+        // Set up the proving deadline
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        // Warp to after the deadline
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() + 1);
+        //Expect a LATE fault event
+        vm.expectEmit();
+        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.LATE, 1);
+        pdpService.posessionProven(proofSetId, challengedLeafCount, seed, challengeCount);
+        assertTrue(pdpService.provenThisPeriod(proofSetId));
+    }
+
+    function testNextProvingPeriodWithoutProof() public {
+        uint256 proofSetId = 1;
+        uint256 leafCount = 100;
+
+        // Set up the proving deadline without marking as proven
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        // Move to the next period
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() + 1);
+        // Expect a SKIPPED fault event
+        vm.expectEmit();
+        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.SKIPPED, 1);
+        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        assertFalse(pdpService.provenThisPeriod(proofSetId));
+    }
+
+    function testInvalidChallengeCount() public {
+        uint256 proofSetId = 1;
+        uint256 challengedLeafCount = 100;
+        uint256 seed = 12345;
+        uint256 invalidChallengeCount = 4; // Less than required
+
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        vm.expectRevert("Invalid challenge count < 5");
+        pdpService.posessionProven(proofSetId, challengedLeafCount, seed, invalidChallengeCount);
+    }
+
+    function testMultiplePeriodsLate() public {
+        uint256 proofSetId = 1;
+        uint256 challengedLeafCount = 100;
+        uint256 seed = 12345;
+        uint256 challengeCount = 5;
+
+        // Set up the proving deadline
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        // Warp to 3 periods after the deadline
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() * 3 + 1);
+        // Expect a LATE fault event with 3 periods
+        vm.expectEmit();
+        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.LATE, 3);
+        pdpService.posessionProven(proofSetId, challengedLeafCount, seed, challengeCount);
     }
 }
