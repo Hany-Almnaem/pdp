@@ -1,7 +1,7 @@
 # Makefile for PDP Contracts
 
 # Variables
-ETH_RPC_URL ?= 
+RPC_URL ?= 
 KEYSTORE_PATH ?= 
 PASSWORD ?= 
 CHALLENGE_FINALITY ?= 
@@ -13,8 +13,11 @@ build:
 test:
 	cd contracts && forge test -vv
 
-deploy:
-	cd contracts && forge create --rpc-url $(ETH_RPC_URL) --keystore $(KEYSTORE_PATH) --password $(PASSWORD) src/PDPService.sol:PDPService --constructor-args $(CHALLENGE_FINALITY)
+deploy-calibnet:
+	cd contracts && ../tools/deploy-calibnet.sh
+
+deploy-devnet:
+	cd contracts && ../tools/deploy-devnet.sh
 
 testBurnFee:
 	cd tools && ./testBurnFee.sh
