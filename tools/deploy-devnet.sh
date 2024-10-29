@@ -25,14 +25,8 @@ lotus send $clientAddr 10000
 
 echo "Deploying PDP verifier"
 # Parse the output of forge create to extract the contract address
-<<<<<<< HEAD
-PDP_VERIFIER_ADDRESS=$(forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" --password "$PASSWORD" --compiler-version 0.8.23 --chain-id 31415926 contracts/src/PDPVerifier.sol:PDPVerifier --constructor-args 3 | grep "Deployed to" | awk '{print $3}')
-
-if [ -z "$PDP_VERIFIER_ADDRESS" ]; then
-=======
 VERIFIER_IMPLEMENTATION_ADDRESS=$(forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" --password "$PASSWORD" --compiler-version 0.8.20 src/PDPVerifier.sol:PDPVerifier | grep "Deployed to" | awk '{print $3}')
 if [ -z "$VERIFIER_IMPLEMENTATION_ADDRESS" ]; then
->>>>>>> eea1cfd (Calib deploy in makefile)
     echo "Error: Failed to extract PDP verifier contract address"
     exit 1
 fi
@@ -43,9 +37,6 @@ PDP_VERIFIER_ADDRESS=$(forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" 
 echo "PDP verifier deployed at: $PDP_VERIFIER_ADDRESS"
 
 echo "Deploying PDP Service"
-<<<<<<< HEAD
-forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" --password "$PASSWORD" --compiler-version 0.8.23 --chain-id 31415926 contracts/src/SimplePDPService.sol:SimplePDPService --constructor-args $PDP_VERIFIER_ADDRESS
-=======
 SERVICE_IMPLEMENTATION_ADDRESS=$(forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" --password "$PASSWORD" --compiler-version 0.8.20 src/SimplePDPService.sol:SimplePDPService | grep "Deployed to" | awk '{print $3}')
 if [ -z "$SERVICE_IMPLEMENTATION_ADDRESS" ]; then
     echo "Error: Failed to extract PDP service contract address"
@@ -56,4 +47,3 @@ echo "Deploying PDP Service proxy"
 INIT_DATA=$(cast calldata "initialize(address)" $PDP_VERIFIER_ADDRESS)
 PDP_SERVICE_ADDRESS=$(forge create --rpc-url "$RPC_URL" --keystore "$KEYSTORE" --password "$PASSWORD" --compiler-version 0.8.20 src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args $SERVICE_IMPLEMENTATION_ADDRESS $INIT_DATA | grep "Deployed to" | awk '{print $3}')
 echo "PDP service deployed at: $PDP_SERVICE_ADDRESS"
->>>>>>> eea1cfd (Calib deploy in makefile)
