@@ -576,6 +576,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, challengeCount, tree, leafCount);
 
         // Submit proof.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
 
         // Verify the next challenge is in a subsequent epoch.
@@ -616,7 +617,8 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         // Test 2: Sending more than the required fee
         uint256 excessFee = correctProofFee + 1 ether;
         uint256 initialBalance = address(this).balance;
-        
+
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: excessFee}(setId, proofs);
         
         uint256 finalBalance = address(this).balance;
@@ -642,6 +644,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, 3, tree, leafCount);
 
         // Submit proof.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
@@ -691,6 +694,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, 3, tree, leafCount);
 
         // Submit proof successfully, advancing the proof set to a new challenge epoch.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         pdpVerifier.nextProvingPeriod(setId); // resample
@@ -706,6 +710,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         tearDown();
     }
 
+    event Debug(string);
     function testBadRootsRejected() public {
         uint[] memory leafCounts = new uint[](2);
         // Note: either co-prime leaf counts or a challenge count > 1 are required for this test to demonstrate the failing proof.
@@ -727,8 +732,10 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         uint256 challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
         vm.roll(challengeEpoch);
         PDPVerifier.Proof[] memory proofsOneRoot = buildProofsForSingleton(setId, 3, trees[0], leafCounts[0]);
+        emit Debug("A");
 
         // The proof for one root should be invalid against the set with two.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         vm.expectRevert();
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofsOneRoot.length)}(setId, proofsOneRoot);
 
@@ -742,16 +749,20 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         // Make a new proof that is valid with two roots
-        vm.roll(pdpVerifier.getNextChallengeEpoch(setId));
-        PDPVerifier.Proof[] memory proofsTwoRoots = buildProofs(pdpVerifier, setId, 1, trees, leafCounts);
+        challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
+        vm.roll(challengeEpoch);
+        PDPVerifier.Proof[] memory proofsTwoRoots = buildProofs(pdpVerifier, setId, 10, trees, leafCounts);
+        emit Debug("B");
 
         // A proof for two roots should be invalid against the set with one.
-        proofsTwoRoots = buildProofs(pdpVerifier, setId, 1, trees, leafCounts); // regen as removal forced resampling challenge seed
+        proofsTwoRoots = buildProofs(pdpVerifier, setId, 10, trees, leafCounts); // regen as removal forced resampling challenge seed
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         vm.expectRevert();
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofsTwoRoots.length)}(setId, proofsTwoRoots);
 
         // But the single root proof is now good again.
         proofsOneRoot = buildProofsForSingleton(setId, 1, trees[0], leafCounts[0]); // regen as removal forced resampling challenge seed
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofsOneRoot.length)}(setId, proofsOneRoot);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
@@ -774,6 +785,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         uint challengeCount = 11;
         PDPVerifier.Proof[] memory proofs = buildProofs(pdpVerifier, setId, challengeCount, trees, leafCounts);
         // Submit proof.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
@@ -1338,10 +1350,11 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         // Advance chain until challenge epoch.
         vm.roll(pdpVerifier.getNextChallengeEpoch(setId));
         // Prepare proofs.
-        uint256 challengeCount = 5;
         // Proving trees for PP1 are just treesA
-        PDPVerifier.Proof[] memory proofsPP1 = buildProofs(pdpVerifier, setId, challengeCount, treesA, leafCountsA);
+        // challengeCount == 5
+        PDPVerifier.Proof[] memory proofsPP1 = buildProofs(pdpVerifier, setId, 5, treesA, leafCountsA);
 
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofsPP1.length)}(setId, proofsPP1);
         pdpVerifier.nextProvingPeriod(setId);
         // CHECK: leaf counts

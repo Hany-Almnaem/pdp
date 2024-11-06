@@ -25,6 +25,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public constant LEAF_SIZE = 32;
     uint256 public constant MAX_ROOT_SIZE = 1 << 50;
     uint256 public constant MAX_ENQUEUED_REMOVALS = 2000;
+    address public constant RANDOMNESS_PRECOMPILE = 0xfE00000000000000000000000000000000000006;
 
     // Events
     event ProofSetCreated(uint256 indexed setId);
@@ -33,7 +34,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event RootsRemoved(uint256[] indexed rootIds);
 
     // Types
-
     // State fields
      event Debug(string message, uint256 value);
 
@@ -387,9 +387,20 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
+    function getRandomness(uint256 epoch) public view returns (uint256) {
+        // Call the precompile
+        (bool success, bytes memory result) = RANDOMNESS_PRECOMPILE.staticcall(abi.encodePacked(epoch));
+
+        // Check if the call was successful
+        require(success, "Randomness precompile call failed");
+
+        // Decode and return the result
+        return abi.decode(result, (uint256));
+    }
+
+
     function drawChallengeSeed(uint256 setId) internal view returns (uint256) {
-        // TODO: fetch proper seed from chain randomness, https://github.com/FILCAT/pdp/issues/44
-        return nextChallengeEpoch[setId];
+        return getRandomness(nextChallengeEpoch[setId]);
     }
 
     // Roll over to the next proving period
