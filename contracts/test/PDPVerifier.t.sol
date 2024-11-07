@@ -710,7 +710,6 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         tearDown();
     }
 
-    event Debug(string);
     function testBadRootsRejected() public {
         uint[] memory leafCounts = new uint[](2);
         // Note: either co-prime leaf counts or a challenge count > 1 are required for this test to demonstrate the failing proof.
@@ -732,7 +731,6 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         uint256 challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
         vm.roll(challengeEpoch);
         PDPVerifier.Proof[] memory proofsOneRoot = buildProofsForSingleton(setId, 3, trees[0], leafCounts[0]);
-        emit Debug("A");
 
         // The proof for one root should be invalid against the set with two.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
@@ -752,7 +750,6 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
         vm.roll(challengeEpoch);
         PDPVerifier.Proof[] memory proofsTwoRoots = buildProofs(pdpVerifier, setId, 10, trees, leafCounts);
-        emit Debug("B");
 
         // A proof for two roots should be invalid against the set with one.
         proofsTwoRoots = buildProofs(pdpVerifier, setId, 10, trees, leafCounts); // regen as removal forced resampling challenge seed
@@ -1351,7 +1348,6 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         vm.roll(pdpVerifier.getNextChallengeEpoch(setId));
         // Prepare proofs.
         // Proving trees for PP1 are just treesA
-        // challengeCount == 5
         PDPVerifier.Proof[] memory proofsPP1 = buildProofs(pdpVerifier, setId, 5, treesA, leafCountsA);
 
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
