@@ -126,9 +126,8 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
         // Warp to after the deadline
         vm.roll(block.number + pdpService.getMaxProvingPeriod() + 1);
-        //Expect a LATE fault event
         vm.expectEmit();
-        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.LATE, 1);
+        emit SimplePDPService.FaultRecord(1);
         pdpService.posessionProven(proofSetId, challengedLeafCount, seed, challengeCount);
         assertTrue(pdpService.provenThisPeriod(proofSetId));
     }
@@ -143,7 +142,7 @@ contract SimplePDPServiceFaultsTest is Test {
         vm.roll(block.number + pdpService.getMaxProvingPeriod() + 1);
         // Expect a SKIPPED fault event
         vm.expectEmit();
-        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.SKIPPED, 1);
+        emit SimplePDPService.FaultRecord(1);
         pdpService.nextProvingPeriod(proofSetId, leafCount);
         assertFalse(pdpService.provenThisPeriod(proofSetId));
     }
@@ -171,7 +170,7 @@ contract SimplePDPServiceFaultsTest is Test {
         vm.roll(block.number + pdpService.getMaxProvingPeriod() * 3 + 1);
         // Expect a LATE fault event with 3 periods
         vm.expectEmit();
-        emit SimplePDPService.FaultRecord(SimplePDPService.FaultType.LATE, 3);
+        emit SimplePDPService.FaultRecord(3);
         pdpService.posessionProven(proofSetId, challengedLeafCount, seed, challengeCount);
     }
 }
