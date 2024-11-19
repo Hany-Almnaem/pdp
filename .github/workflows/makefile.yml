@@ -16,15 +16,6 @@ jobs:
       - name: configure
         run: ./configure
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-
-      - name: Initialize Git Submodules
-        run: git submodule update --init --recursive
-
-      - name: Install Forge Dependencies
-        run: forge install
-
       - name: Run build
         run: |
           export PATH="/home/runner/.config/.foundry/bin:$PATH";
