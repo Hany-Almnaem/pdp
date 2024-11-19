@@ -16,3 +16,4 @@ lib/
 
 # Configuration backups
 configure.backup
+out/
