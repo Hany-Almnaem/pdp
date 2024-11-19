@@ -20,9 +20,10 @@ jobs:
         with:
           version: nightly
 
-      - name: Git Submodule Dependencies
+      - name: Install Dependencies
         run: |
           git submodule update --init --recursive
+          forge install
 
       - name: Build and test
         run: |
