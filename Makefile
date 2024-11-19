@@ -1,23 +1,30 @@
 # Makefile for PDP Contracts
 
 # Variables
-RPC_URL ?= 
-KEYSTORE_PATH ?= 
-PASSWORD ?= 
-CHALLENGE_FINALITY ?= 
+RPC_URL ?=
+KEYSTORE_PATH ?=
+PASSWORD ?=
+CHALLENGE_FINALITY ?=
 
-# Targets
+# Default target
+.PHONY: all
+all: build test
+
+# Build target
+.PHONY: build
 build:
-	cd contracts && forge build
+	forge build
 
+# Test target
+.PHONY: test
 test:
-	cd contracts && forge test -vv
+	forge test -vv
 
+# Deployment targets
+.PHONY: deploy-calibnet
 deploy-calibnet:
-	cd contracts && ../tools/deploy-calibnet.sh
+	./tools/deploy-calibnet.sh
 
+.PHONY: deploy-devnet
 deploy-devnet:
-	cd contracts && ../tools/deploy-devnet.sh
-
-testBurnFee:
-	cd tools && ./testBurnFee.sh
+	./tools/deploy-devnet.sh
