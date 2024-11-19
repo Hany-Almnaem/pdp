@@ -18,13 +18,12 @@ jobs:
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: nightly
 
-      - name: Install Dependencies
-        run: |
-          git submodule update --init --recursive
-          forge install
+      - name: Initialize Git Submodules
+        run: git submodule update --init --recursive
+
+      - name: Install Forge Dependencies
+        run: forge install
 
       - name: Run build
         run: |
