@@ -1,2 +1,18 @@
 # Visual Studio Code local configuration
 .vscode
+
+# IDE
+.vscode
+
+# Foundry
+cache/
+out/
+
+# Node Modules/Build
+lib/
+
+# System files
+.DS_Store
+
+# Configuration backups
+configure.backup
