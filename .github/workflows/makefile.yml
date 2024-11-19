@@ -1,29 +1,28 @@
-name: Makefile CI
+name: test
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+
+env:
+  FOUNDRY_PROFILE: ci
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    - name: configure
-      run: ./configure
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: nightly
 
-    - name: Run build
-      run: |
-        export PATH="/home/runner/.config/.foundry/bin:$PATH";
-        make build;
-
-
-    - name: Run tests
-      run: |
-        export PATH="/home/runner/.config/.foundry/bin:$PATH";
-        make test;
+      - name: Build and test
+        run: |
+          make build
+          make test
