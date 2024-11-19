@@ -1,6 +1,3 @@
-# Visual Studio Code local configuration
-.vscode
-
 # IDE
 .vscode
 
@@ -16,4 +13,3 @@ lib/
 
 # Configuration backups
 configure.backup
-out/

@@ -28,8 +28,3 @@ deploy-calibnet:
 .PHONY: deploy-devnet
 deploy-devnet:
 	./tools/deploy-devnet.sh
-
-# Test utilities
-.PHONY: testBurnFee
-testBurnFee:
-	./tools/testBurnFee.sh
