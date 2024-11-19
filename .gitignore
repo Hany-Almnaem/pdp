@@ -5,9 +5,6 @@
 cache/
 out/
 
-# Node Modules/Build
-lib/
-
 # System files
 .DS_Store
 
