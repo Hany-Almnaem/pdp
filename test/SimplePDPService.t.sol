@@ -141,8 +141,7 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
-    // TODO this should change to a revert 
-    function testNextProvingPeriodNoop() public {
+    function testNextProvingPeriodTwiceFails() public {
         // Set up the proving deadline
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
         vm.roll(block.number + pdpService.getMaxProvingPeriod() - 100);
@@ -153,11 +152,10 @@ contract SimplePDPServiceFaultsTest is Test {
         assertEq(pdpService.provingDeadlines(proofSetId), deadline1, "Proving deadline should not change until nextProvingPeriod.");
         pdpService.nextProvingPeriod(proofSetId, leafCount);
         assertEq(pdpService.provingDeadlines(proofSetId), deadline1 + pdpService.getMaxProvingPeriod(), "Proving deadline should be updated");
-        uint256 deadline2 = pdpService.provingDeadlines(proofSetId);
         assertFalse(pdpService.provenThisPeriod(proofSetId));
 
-        pdpService.nextProvingPeriod(proofSetId, leafCount); // NOOP
-        assertEq(pdpService.provingDeadlines(proofSetId), deadline2, "Proving deadline should not change");
+        vm.expectRevert("One call to nextProvingPeriod allowed per proving period");
+        pdpService.nextProvingPeriod(proofSetId, leafCount); 
     }
 
     function testFaultWithinOpenPeriod() public {

@@ -67,7 +67,7 @@ contract PDPRecordKeeper {
     }
 }
 
-// SimplePDPServiceApplication is a default implementation of a PDP Application.
+// SimplePDPServiceApplication is a default implementation of a PDP Listener
 // It maintains a record of all events that have occurred in the PDP service,
 // and provides a way to query these events.
 // This contract only supports one PDP service caller, set in the constructor.
@@ -157,7 +157,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
         // Can only get here if calling nextProvingPeriod multiple times within the same proving period
         uint256 prevDeadline = provingDeadlines[proofSetId] - getMaxProvingPeriod();
         if (block.number <= prevDeadline) {
-            return;
+            revert("One call to nextProvingPeriod allowed per proving period");
         }
 
         uint256 periodsSkipped;
