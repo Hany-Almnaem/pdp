@@ -169,7 +169,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
             return;
         }
         // Past the open proving period
-        uint256 periodsSkipped = (block.number - provingDeadlines[proofSetId]) / getMaxProvingPeriod();
+        uint256 periodsSkipped = (block.number - (provingDeadlines[proofSetId] + 1)) / getMaxProvingPeriod();
         uint256 faultPeriods = periodsSkipped;
         if (!provenThisPeriod[proofSetId]) { 
             // include previous unproven period 
@@ -178,7 +178,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
         if (faultPeriods > 0) {
             emit FaultRecord(faultPeriods);
         }
-        provingDeadlines[proofSetId] = provingDeadlines[proofSetId] + getMaxProvingPeriod()*periodsSkipped; 
+        provingDeadlines[proofSetId] = provingDeadlines[proofSetId] + getMaxProvingPeriod()*(periodsSkipped+1); 
         provenThisPeriod[proofSetId] = false;
     }
 }

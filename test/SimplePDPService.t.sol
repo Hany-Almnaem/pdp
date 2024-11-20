@@ -113,14 +113,18 @@ contract SimplePDPServiceFaultsTest is Test {
     function testPosessionProvenOnTime() public {
         // Set up the proving deadline
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
-        vm.roll(block.number + pdpService.getMaxProvingPeriod() - 1);
+        vm.roll(block.number + pdpService.getMaxProvingPeriod());
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
         assertTrue(pdpService.provenThisPeriod(proofSetId));
+
+        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        vm.roll(block.number + 1);
+        pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
     function testNextProvingPeriodCalledLastMinuteOK() public {
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
-        vm.roll(block.number + pdpService.getMaxProvingPeriod() - 1);
+        vm.roll(block.number + pdpService.getMaxProvingPeriod());
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
 
         // wait until almost the end of proving period 2 
@@ -130,6 +134,7 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
+    // TODO this should change to a revert 
     function testNextProvingPeriodNoop() public {
         // Set up the proving deadline
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
@@ -228,6 +233,10 @@ contract SimplePDPServiceFaultsTest is Test {
 
     function testCanOnlyProveOncePerPeriod() public {
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        // We're technically at the previous deadline so we fail to prove until we roll forward 1
+        vm.expectRevert("Too early. Wait for proving period to open");
+        pdpService.posessionProven(proofSetId, leafCount, seed, 5);
+        vm.roll(block.number + 1);
         pdpService.posessionProven(proofSetId, leafCount, seed, 5);
         vm.expectRevert("Only one proof of possession allowed per proving period. Open a new proving period.");
         pdpService.posessionProven(proofSetId, leafCount, seed, 5);
