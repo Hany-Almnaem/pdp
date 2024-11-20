@@ -134,6 +134,13 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
+    function testFirstEpochLateToProve() public {
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() + 1);
+        vm.expectRevert("Current proving period passed. Open a new proving period.");
+        pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
+    }
+
     // TODO this should change to a revert 
     function testNextProvingPeriodNoop() public {
         // Set up the proving deadline

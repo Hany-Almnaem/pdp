@@ -159,17 +159,14 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
         if (block.number <= prevDeadline) {
             return;
         }
-        // Within the open proving period
+
+        uint256 periodsSkipped;
+        // Proving period is open 0 skipped periods
         if (block.number <= provingDeadlines[proofSetId]) {
-            if (!provenThisPeriod[proofSetId]) {
-                emit FaultRecord(1);
-            }
-            provingDeadlines[proofSetId] = provingDeadlines[proofSetId] + getMaxProvingPeriod();
-            provenThisPeriod[proofSetId] = false;
-            return;
+            periodsSkipped = 0;
+        } else { // Proving period has closed possible some skipped periods
+            periodsSkipped = (block.number - (provingDeadlines[proofSetId] + 1)) / getMaxProvingPeriod();
         }
-        // Past the open proving period
-        uint256 periodsSkipped = (block.number - (provingDeadlines[proofSetId] + 1)) / getMaxProvingPeriod();
         uint256 faultPeriods = periodsSkipped;
         if (!provenThisPeriod[proofSetId]) { 
             // include previous unproven period 
