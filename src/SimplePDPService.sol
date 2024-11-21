@@ -67,20 +67,12 @@ contract PDPRecordKeeper {
     }
 }
 
-// SimplePDPServiceApplication is a default implementation of a PDP Application.
+// SimplePDPServiceApplication is a default implementation of a PDP Listener
 // It maintains a record of all events that have occurred in the PDP service,
 // and provides a way to query these events.
 // This contract only supports one PDP service caller, set in the constructor.
 contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUpgradeable, OwnableUpgradeable {
-
-    enum FaultType {
-        NONE,
-        LATE,
-        SKIPPED
-    }
-
-    event Debug(string message, uint256 value);
-    event FaultRecord(FaultType faultType, uint256 periodsFaulted);
+    event FaultRecord(uint256 periodsFaulted);
 
     // The address of the PDP verifier contract that is allowed to call this contract
     address public pdpVerifierAddress;
@@ -142,37 +134,48 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
     // it also checks that proofs are not late and emits a fault record if so
     function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
-        emit Debug("Here we go", 0);
         if (provenThisPeriod[proofSetId]) { 
-            // return immediately, we've already witnessed a proof for this proof set this period
-            return; 
+            revert("Only one proof of possession allowed per proving period. Open a new proving period."); 
         }
-
         if (challengeCount < getChallengesPerProof()) {
             revert("Invalid challenge count < 5");
         }
-        emit Debug("deadline", provingDeadlines[proofSetId]);
-        emit Debug("block number", block.number);
-        // check for late proof 
+        // check for proof outside of proving period
         if (provingDeadlines[proofSetId] < block.number) {
-            uint256 periodsLate = 1 + ((block.number - provingDeadlines[proofSetId]) / getMaxProvingPeriod());
-            emit Debug("we're late", periodsLate); 
-            emit FaultRecord(FaultType.LATE, periodsLate);
+            revert("Current proving period passed. Open a new proving period.");
+        } 
+        if (provingDeadlines[proofSetId] - getMaxProvingPeriod() >= block.number) {
+            revert("Too early. Wait for proving period to open");
         }
         provenThisPeriod[proofSetId] = true;
     }
 
-    // nextProvingPeriod checks for unsubmitted proof and emits a fault record if so
+    // nextProvingPeriod checks for unsubmitted proof and emits a fault if so
     function nextProvingPeriod(uint256 proofSetId, uint256 leafCount) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.NEXT_PROVING_PERIOD, abi.encode(leafCount));
-        // check for unsubmitted proof 
-        if (!provenThisPeriod[proofSetId]) {
-            uint256 periodsSkipped = 1;
-            if (provingDeadlines[proofSetId] < block.number) {
-                periodsSkipped = 1 + ((block.number - provingDeadlines[proofSetId]) / getMaxProvingPeriod());
-            }
-            emit FaultRecord(FaultType.SKIPPED, periodsSkipped);
+        // Noop when proving period not yet open
+        // Can only get here if calling nextProvingPeriod multiple times within the same proving period
+        uint256 prevDeadline = provingDeadlines[proofSetId] - getMaxProvingPeriod();
+        if (block.number <= prevDeadline) {
+            revert("One call to nextProvingPeriod allowed per proving period");
         }
+
+        uint256 periodsSkipped;
+        // Proving period is open 0 skipped periods
+        if (block.number <= provingDeadlines[proofSetId]) {
+            periodsSkipped = 0;
+        } else { // Proving period has closed possible some skipped periods
+            periodsSkipped = (block.number - (provingDeadlines[proofSetId] + 1)) / getMaxProvingPeriod();
+        }
+        uint256 faultPeriods = periodsSkipped;
+        if (!provenThisPeriod[proofSetId]) { 
+            // include previous unproven period 
+            faultPeriods += 1;
+        }
+        if (faultPeriods > 0) {
+            emit FaultRecord(faultPeriods);
+        }
+        provingDeadlines[proofSetId] = provingDeadlines[proofSetId] + getMaxProvingPeriod()*(periodsSkipped+1); 
         provenThisPeriod[proofSetId] = false;
     }
 }

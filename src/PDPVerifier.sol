@@ -429,7 +429,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         removeRoots(setId, removalsToProcess);
         // Bring added roots into proving set
         challengeRange[setId] = proofSetLeafCount[setId];
-
         nextChallengeEpoch[setId] = block.number + challengeFinality;
 
         // Clear next challenge epoch if the set is now empty.

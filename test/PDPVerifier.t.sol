@@ -10,7 +10,7 @@ import {PDPFees} from "../src/Fees.sol";
 import {SimplePDPService, PDPRecordKeeper} from "../src/SimplePDPService.sol";
 
 contract PDPVerifierProofSetCreateDeleteTest is Test {
-    SimplePDPService listener;
+    TestingRecordKeeperService listener;
     ListenerHelper listenerAssert;
     PDPVerifier pdpVerifier;
 
@@ -23,10 +23,7 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));
+        listener = new TestingRecordKeeperService();
         listenerAssert = new ListenerHelper(address(listener));
     }
     function tearDown() public view {
@@ -147,7 +144,7 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
 
 contract PDPVerifierOwnershipTest is Test {
     PDPVerifier pdpVerifier;
-    SimplePDPService listener;
+    TestingRecordKeeperService listener;
     address public owner;
     address public nextOwner;
     address public nonOwner;
@@ -160,10 +157,7 @@ contract PDPVerifierOwnershipTest is Test {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));
+        listener = new TestingRecordKeeperService();
 
         owner = address(this);
         nextOwner = address(0x1234);
@@ -231,7 +225,7 @@ contract PDPVerifierProofSetMutateTest is Test {
     uint256 constant challengeFinalityDelay = 2;
 
     PDPVerifier pdpVerifier;
-    SimplePDPService listener;
+    TestingRecordKeeperService listener;
     ListenerHelper listenerAssert;
 
     function setUp() public {
@@ -242,10 +236,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));
+        listener = new TestingRecordKeeperService();
         listenerAssert = new ListenerHelper(address(listener));
     }
 
@@ -896,7 +887,7 @@ import "../src/PDPVerifier.sol";
 
 contract SumTreeAddTest is Test {
     SumTreeInternalTestPDPVerifier pdpVerifier;
-    SimplePDPService listener;
+    TestingRecordKeeperService listener;
     uint256 testSetId;
 
     function setUp() public {
@@ -907,10 +898,7 @@ contract SumTreeAddTest is Test {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = SumTreeInternalTestPDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));       
+        listener = new TestingRecordKeeperService();
         testSetId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener));
     }
 
@@ -1272,7 +1260,7 @@ contract PDPListenerIntegrationTest is Test {
 
 contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
     PDPVerifier pdpVerifier;
-    SimplePDPService listener;
+    TestingRecordKeeperService listener;
     uint256 constant challengeFinalityDelay = 2;
 
     function setUp() public {
@@ -1283,10 +1271,7 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        SimplePDPService listenerImpl = new SimplePDPService();
-        initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifier));
-        MyERC1967Proxy listenerProxy = new MyERC1967Proxy(address(listenerImpl), initializeData);
-        listener = SimplePDPService(address(listenerProxy));
+        listener = new TestingRecordKeeperService();
     }
 
     function testCompleteProvingPeriodE2E() public {
