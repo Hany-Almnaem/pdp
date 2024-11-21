@@ -252,7 +252,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         uint256 rootId = pdpVerifier.addRoots(setId, roots);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.ADD, setId);
         // flush add
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         uint256 leafCount = roots[0].rawSize / 32;
@@ -278,7 +278,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.ADD, setId);
         assertEq(firstId, 0);
         // flush add
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         uint256 expectedLeafCount = roots[0].rawSize / 32 + roots[1].rawSize / 32;
@@ -365,7 +365,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         pdpVerifier.scheduleRemovals(setId, toRemove);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
 
-        pdpVerifier.nextProvingPeriod(setId); // flush
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay); // flush
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), 0);
@@ -391,7 +391,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         toRemove[1] = 2;
         pdpVerifier.scheduleRemovals(setId, toRemove);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
-        pdpVerifier.nextProvingPeriod(setId); // flush
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay); // flush
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         assertEq(pdpVerifier.rootLive(setId, 0), false);
@@ -431,7 +431,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         pdpVerifier.scheduleRemovals(setId, toRemove);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
         // Actual removal does not fail
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         // Scheduling both unchallengeable and challengeable roots for removal succeeds
@@ -451,7 +451,7 @@ contract PDPVerifierProofSetMutateTest is Test {
         assertEq(false, pdpVerifier.rootChallengable(setId, 1));
         pdpVerifier.scheduleRemovals(setId, toRemove2);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         assertEq(false, pdpVerifier.rootLive(setId, 0));
@@ -526,8 +526,8 @@ contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
     }
 
-    function nextProvingPeriod(uint256 proofSetId, uint256 leafCount) external override {
-        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(leafCount));
+    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount) external override {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(challengeEpoch, leafCount));
     }
 }
 
@@ -576,7 +576,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), challengeEpoch);
 
         // Verify the next challenge is in a subsequent epoch after nextProvingPeriod
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), block.number + challengeFinalityDelay);
@@ -688,7 +688,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
-        pdpVerifier.nextProvingPeriod(setId); // resample
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay); // resample
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         uint nextChallengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
@@ -734,7 +734,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         pdpVerifier.scheduleRemovals(setId, removeRoots);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
         // flush removes
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
 
         // Make a new proof that is valid with two roots
@@ -798,7 +798,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.CREATE, setId);
         pdpVerifier.addRoots(setId, roots);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.ADD, setId);
-        pdpVerifier.nextProvingPeriod(setId); // flush adds
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay); // flush adds
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
         return (setId, trees);
     }
@@ -819,7 +819,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         roots[0] = makeRoot(tree, leafCount);
         uint256 rootId = pdpVerifier.addRoots(setId, roots);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.ADD, setId);
-        pdpVerifier.nextProvingPeriod(setId); // flush adds
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay); // flush adds
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
         return (tree, rootId);
     }
@@ -889,12 +889,13 @@ contract SumTreeAddTest is Test {
     SumTreeInternalTestPDPVerifier pdpVerifier;
     TestingRecordKeeperService listener;
     uint256 testSetId;
+    uint256 challengeFinalityDelay = 100;
 
     function setUp() public {
         PDPVerifier pdpVerifierImpl = new SumTreeInternalTestPDPVerifier();
         bytes memory initializeData = abi.encodeWithSelector(
             PDPVerifier.initialize.selector,
-            100
+            challengeFinalityDelay
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = SumTreeInternalTestPDPVerifier(address(proxy));
@@ -969,7 +970,7 @@ contract SumTreeAddTest is Test {
         // Remove roots in batch
         pdpVerifier.scheduleRemovals(testSetId, rootIdsToRemove);
         // flush adds and removals
-        pdpVerifier.nextProvingPeriod(testSetId);
+        pdpVerifier.nextProvingPeriod(testSetId, block.number + challengeFinalityDelay);
         for (uint256 i = 0; i < rootIdsToRemove.length; i++) {
             bytes memory zeroBytes;
             assertEq(pdpVerifier.getRootCid(testSetId, rootIdsToRemove[i]).data, zeroBytes);
@@ -1106,7 +1107,7 @@ contract SumTreeAddTest is Test {
             pdpVerifier.addRoots(testSetId, rootDataArray);
         }
         pdpVerifier.scheduleRemovals(testSetId, rootIdsToRemove);
-        pdpVerifier.nextProvingPeriod(testSetId); //flush removals
+        pdpVerifier.nextProvingPeriod(testSetId, block.number + challengeFinalityDelay); //flush removals
 
         assertFindRootAndOffset(testSetId, 0, 3, 0);
         assertFindRootAndOffset(testSetId, 1, 4, 0);
@@ -1197,8 +1198,8 @@ contract BadListener is PDPListener {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
     }
 
-    function nextProvingPeriod(uint256 proofSetId, uint256 leafCount) external view {
-        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(leafCount));
+    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount) external view {
+        receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(challengeEpoch, leafCount));
     }
 
     function receiveProofSetEvent(
@@ -1215,12 +1216,12 @@ contract BadListener is PDPListener {
 contract PDPListenerIntegrationTest is Test {
     PDPVerifier pdpVerifier;
     BadListener badListener;
-
+    uint256 constant challengeFinalityDelay = 2;
     function setUp() public {
         PDPVerifier pdpVerifierImpl = new PDPVerifier();
         bytes memory initializeData = abi.encodeWithSelector(
             PDPVerifier.initialize.selector,
-            2
+            challengeFinalityDelay
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
@@ -1254,7 +1255,7 @@ contract PDPListenerIntegrationTest is Test {
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD);
         vm.expectRevert("Failing operation");
-        pdpVerifier.nextProvingPeriod(0);
+        pdpVerifier.nextProvingPeriod(0, block.number + challengeFinalityDelay);
     }
 }
 
@@ -1337,7 +1338,7 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
 
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
         pdpVerifier.provePossession{value: PDPFees.proofFee(proofsPP1.length)}(setId, proofsPP1);
-        pdpVerifier.nextProvingPeriod(setId);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay);
         // CHECK: leaf counts
         assertEq(pdpVerifier.getRootLeafCount(setId, 0), leafCountsA[0], "First root leaf count should be the set leaf count");
         assertEq(pdpVerifier.getRootLeafCount(setId, 1), 0, "Second root leaf count should be zeroed after removal");
