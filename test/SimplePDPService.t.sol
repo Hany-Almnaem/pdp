@@ -158,7 +158,7 @@ contract SimplePDPServiceFaultsTest is Test {
         assertFalse(pdpService.provenThisPeriod(proofSetId));
 
         vm.expectRevert("One call to nextProvingPeriod allowed per proving period");
-        pdpService.nextProvingPeriod(proofSetId, challengeEpoch, leafCount, empty); 
+        pdpService.nextProvingPeriod(proofSetId, challengeEpoch, leafCount, empty);
     }
 
     function testFaultWithinOpenPeriod() public {
@@ -277,7 +277,7 @@ contract SimplePDPServiceFaultsTest is Test {
 
     function testMissChallengeWindowAfterFaults() public {
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0), empty);
-        
+
         // Skip 2 proving periods
         vm.roll(block.number + pdpService.getMaxProvingPeriod() * 3 - 100);
 
@@ -286,7 +286,7 @@ contract SimplePDPServiceFaultsTest is Test {
         vm.expectRevert("Next challenge epoch must fall within the next challenge window");
         pdpService.nextProvingPeriod(proofSetId, tooEarly, leafCount, empty);
 
-        // Too late 
+        // Too late
         uint256 tooLate = pdpService.nextChallengeWindowStart(proofSetId)+pdpService.challengeWindow()+1;
         vm.expectRevert("Next challenge epoch must fall within the next challenge window");
         pdpService.nextProvingPeriod(proofSetId, tooLate, leafCount, empty);
