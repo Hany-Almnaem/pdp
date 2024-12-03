@@ -117,7 +117,7 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
         assertTrue(pdpService.provenThisPeriod(proofSetId));
 
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
         vm.roll(block.number + 1);
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
@@ -130,7 +130,7 @@ contract SimplePDPServiceFaultsTest is Test {
         // wait until almost the end of proving period 2 
         // this should all work fine
         vm.roll(block.number + pdpService.getMaxProvingPeriod());
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
         pdpService.posessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
@@ -150,12 +150,13 @@ contract SimplePDPServiceFaultsTest is Test {
         assertTrue(pdpService.provenThisPeriod(proofSetId));
 
         assertEq(pdpService.provingDeadlines(proofSetId), deadline1, "Proving deadline should not change until nextProvingPeriod.");
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        uint256 challengeEpoch = pdpService.nextChallengeWindowStart(proofSetId);
+        pdpService.nextProvingPeriod(proofSetId, challengeEpoch, leafCount);
         assertEq(pdpService.provingDeadlines(proofSetId), deadline1 + pdpService.getMaxProvingPeriod(), "Proving deadline should be updated");
         assertFalse(pdpService.provenThisPeriod(proofSetId));
 
         vm.expectRevert("One call to nextProvingPeriod allowed per proving period");
-        pdpService.nextProvingPeriod(proofSetId, leafCount); 
+        pdpService.nextProvingPeriod(proofSetId, challengeEpoch, leafCount); 
     }
 
     function testFaultWithinOpenPeriod() public {
@@ -167,7 +168,7 @@ contract SimplePDPServiceFaultsTest is Test {
         // Expect fault event when calling nextProvingPeriod without proof
         vm.expectEmit(true, true, true, true);
         emit SimplePDPService.FaultRecord(1);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
     }
 
     function testFaultAfterPeriodOver() public {
@@ -179,7 +180,7 @@ contract SimplePDPServiceFaultsTest is Test {
         // Expect fault event when calling nextProvingPeriod without proof
         vm.expectEmit(true, true, true, true);
         emit SimplePDPService.FaultRecord(1);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
     }
 
     function testNextProvingPeriodWithoutProof() public {
@@ -190,7 +191,7 @@ contract SimplePDPServiceFaultsTest is Test {
         // Expect a fault event
         vm.expectEmit();
         emit SimplePDPService.FaultRecord(1);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
         assertFalse(pdpService.provenThisPeriod(proofSetId));
     }
 
@@ -213,7 +214,7 @@ contract SimplePDPServiceFaultsTest is Test {
 
         vm.expectEmit(true, true, true, true);
         emit SimplePDPService.FaultRecord(3);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
     }
 
     function testMultiplePeriodsLateWithInitialProof() public {
@@ -233,7 +234,7 @@ contract SimplePDPServiceFaultsTest is Test {
         // Should emit fault record for 2 periods (current period not counted since not yet expired)
         vm.expectEmit(true, true, true, true);
         emit SimplePDPService.FaultRecord(2);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
     }
 
     function testCanOnlyProveOncePerPeriod() public {
@@ -251,8 +252,171 @@ contract SimplePDPServiceFaultsTest is Test {
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
         vm.roll(block.number + pdpService.getMaxProvingPeriod() -100);
         pdpService.posessionProven(proofSetId, leafCount, seed, 5);
-        pdpService.nextProvingPeriod(proofSetId, leafCount);
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount);
         vm.expectRevert("Too early. Wait for proving period to open");
         pdpService.posessionProven(proofSetId, leafCount, seed, 5);
+    }
+
+    function testMissChallengeWindow() public {
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() - 100);
+        // Too early
+        uint256 tooEarly = pdpService.nextChallengeWindowStart(proofSetId)-1;
+        vm.expectRevert("Next challenge epoch must fall within the next challenge window");
+        pdpService.nextProvingPeriod(proofSetId, tooEarly, leafCount);
+        // Too late
+        uint256 tooLate = pdpService.nextChallengeWindowStart(proofSetId)+pdpService.challengeWindow()+1;
+        vm.expectRevert("Next challenge epoch must fall within the next challenge window");
+        pdpService.nextProvingPeriod(proofSetId, tooLate, leafCount);
+
+        // Works right on the deadline
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId)+pdpService.challengeWindow(), leafCount);
+    }
+
+    function testMissChallengeWindowAfterFaults() public {
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+        
+        // Skip 2 proving periods
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() * 3 - 100);
+
+        // Too early
+        uint256 tooEarly = pdpService.nextChallengeWindowStart(proofSetId)-1;
+        vm.expectRevert("Next challenge epoch must fall within the next challenge window");
+        pdpService.nextProvingPeriod(proofSetId, tooEarly, leafCount);
+
+        // Too late 
+        uint256 tooLate = pdpService.nextChallengeWindowStart(proofSetId)+pdpService.challengeWindow()+1;
+        vm.expectRevert("Next challenge epoch must fall within the next challenge window");
+        pdpService.nextProvingPeriod(proofSetId, tooLate, leafCount);
+
+        // Should emit fault record for 2 periods
+        vm.expectEmit(true, true, true, true);
+        emit SimplePDPService.FaultRecord(2);
+        // Works right on the deadline
+        pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId)+pdpService.challengeWindow(), leafCount);
+    }
+
+    function testNextChallengeWindowStart() public {
+        pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0));
+    }
+}
+
+contract challengeWindowStartTest is Test {
+    SimplePDPService public service;
+    uint256 constant PROOF_SET_ID = 0;
+
+    function setUp() public {
+        address pdpVerifierAddress = address(this);
+        SimplePDPService pdpServiceImpl = new SimplePDPService();
+        bytes memory initializeData = abi.encodeWithSelector(SimplePDPService.initialize.selector, address(pdpVerifierAddress));
+        MyERC1967Proxy pdpServiceProxy = new MyERC1967Proxy(address(pdpServiceImpl), initializeData);
+        service = SimplePDPService(address(pdpServiceProxy));
+
+        service.rootsAdded(PROOF_SET_ID, 0, new PDPVerifier.RootData[](0));
+
+    }
+
+    function testRevertWhenProvingPeriodNotOpen() public {
+        vm.expectRevert("Proving not yet started");
+        service.nextChallengeWindowStart(1); // unused proof set ID
+
+        vm.expectRevert("Proving not yet started");
+        service.thisChallengeWindowStart(1); // unused proof set ID
+    }
+
+    function testCurrentPeriodNotExpired() public {
+        // Get initial deadline
+        uint256 deadline = service.provingDeadlines(PROOF_SET_ID);
+        
+        // Set block to middle of period
+        vm.roll(deadline - 1000);
+        
+        uint256 expectedStart = deadline - service.challengeWindow();
+        assertEq(
+            service.thisChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Challenge window should start before current deadline"
+        );
+
+        uint256 expectedNextStart = expectedStart + service.getMaxProvingPeriod();
+        assertEq(
+            service.nextChallengeWindowStart(PROOF_SET_ID),
+            expectedNextStart,
+            "Next challenge window should start after current deadline"
+        );
+    }
+
+    function testOnePeriodSkipped() public {
+        uint256 deadline = service.provingDeadlines(PROOF_SET_ID);
+        
+        // Set block to just after current period
+        vm.roll(deadline + 1);
+        
+        uint256 expectedStart = deadline + 
+            service.getMaxProvingPeriod() - 
+            service.challengeWindow();
+            
+        assertEq(
+            service.thisChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Challenge window should start in next period"
+        );
+
+        assertEq(
+            service.nextChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Next challenge window should start in the current period"
+        );
+    }
+
+    function testMultiplePeriodsSkipped() public {
+        uint256 deadline = service.provingDeadlines(PROOF_SET_ID);
+        uint256 periodsToSkip = 40;
+        
+        // Skip several periods
+        vm.roll(deadline + (service.getMaxProvingPeriod() * periodsToSkip) + 1);
+        
+        uint256 expectedStart = deadline + 
+            (service.getMaxProvingPeriod() * (periodsToSkip + 1)) - 
+            service.challengeWindow();
+            
+        assertEq(
+            service.thisChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Challenge window should start after skipped periods"
+        );
+
+        assertEq(
+            service.nextChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Next challenge window should start in the current period"
+        );
+    }
+
+    function testExactlyAtPeriodBoundary() public {
+        uint256 deadline = service.provingDeadlines(PROOF_SET_ID);
+        
+        // Set block exactly at deadline
+        vm.roll(deadline);
+        
+        uint256 expectedStart = deadline - service.challengeWindow();
+        assertEq(
+            service.thisChallengeWindowStart(PROOF_SET_ID),
+            expectedStart,
+            "Challenge window should be in current period at boundary"
+        );
+
+        assertEq(
+            service.nextChallengeWindowStart(PROOF_SET_ID),
+            expectedStart + service.getMaxProvingPeriod(),
+            "Next challenge window should start in the next period"
+        );
+    }
+
+    function testWithinChallengeWindow() public {
+        uint256 deadline = service.provingDeadlines(PROOF_SET_ID);
+        vm.roll(deadline - service.challengeWindow() + 1);
+        assertEq(service.thisChallengeWindowStart(PROOF_SET_ID), deadline - service.challengeWindow(), "Challenge window should start before current deadline");
+        assertEq(service.nextChallengeWindowStart(PROOF_SET_ID), deadline - service.challengeWindow() + service.getMaxProvingPeriod(), "Next challenge window should start in the next period");
     }
 }

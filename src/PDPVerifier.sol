@@ -16,7 +16,7 @@ interface PDPListener {
     function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] memory rootData) external;
     function rootsScheduledRemove(uint256 proofSetId, uint256[] memory rootIds) external;
     function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
-    function nextProvingPeriod(uint256 proofSetId, uint256 leafCount) external;
+    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount) external;
 }
 
 contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -411,11 +411,12 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // So after this method is called roots scheduled for removal are no longer eligible for challenging
     // and can be deleted.  And roots added in the last proving period must be available for challenging.
     //
-    // Additionally this method forces sampling of a new challenge `challengeFinality` epochs in the future.
+    // Additionally this method forces sampling of a new challenge.  It enforces that the new
+    // challenge epoch is at least `challengeFinality` epochs in the future.
     //
     // Note that this method can be called at any time but the pdpListener will likely consider it
     // a "fault" or other penalizeable behavior to call this method before calling provePossesion.
-    function nextProvingPeriod(uint256 setId) public {
+    function nextProvingPeriod(uint256 setId, uint256 challengeEpoch) public {
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
         // Take removed roots out of proving set
         uint256[] storage removals = scheduledRemovals[setId];
@@ -429,7 +430,10 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         removeRoots(setId, removalsToProcess);
         // Bring added roots into proving set
         challengeRange[setId] = proofSetLeafCount[setId];
-        nextChallengeEpoch[setId] = block.number + challengeFinality;
+        if (challengeEpoch - block.number < challengeFinality) {
+            revert("challenge epoch must be at least challengeFinality epochs in the future");
+        }
+        nextChallengeEpoch[setId] = challengeEpoch;
 
         // Clear next challenge epoch if the set is now empty.
         // It will be re-set when new data is added.
@@ -439,7 +443,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
-            PDPListener(listenerAddr).nextProvingPeriod(setId, proofSetLeafCount[setId]);
+            PDPListener(listenerAddr).nextProvingPeriod(setId, challengeEpoch,proofSetLeafCount[setId]);
         }
     }
 
