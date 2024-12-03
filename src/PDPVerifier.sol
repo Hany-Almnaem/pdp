@@ -15,6 +15,7 @@ interface PDPListener {
     function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata extraData) external;
     function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] memory rootData, bytes calldata extraData) external;
     function rootsScheduledRemove(uint256 proofSetId, uint256[] memory rootIds, bytes calldata extraData) external;
+    // Note: extraData not included as proving messages conceptually always originate from the SP 
     function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
     function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata extraData) external;
 }
@@ -26,7 +27,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public constant MAX_ROOT_SIZE = 1 << 50;
     uint256 public constant MAX_ENQUEUED_REMOVALS = 2000;
     address public constant RANDOMNESS_PRECOMPILE = 0xfE00000000000000000000000000000000000006;
-    uint256 public constant EXTRA_DATA_MAX_SIZE = 512;
+    uint256 public constant EXTRA_DATA_MAX_SIZE = 2048;
 
     // Events
     event ProofSetCreated(uint256 indexed setId);
