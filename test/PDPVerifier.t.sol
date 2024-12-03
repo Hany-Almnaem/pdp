@@ -1269,6 +1269,92 @@ contract PDPListenerIntegrationTest is Test {
     }
 }
 
+contract ExtraDataListener is PDPListener {
+    mapping(uint256 => mapping(PDPRecordKeeper.OperationType => bytes)) public extraDataBySetId;
+
+    function proofSetCreated(uint256 proofSetId, address, bytes calldata extraData) external {
+        extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.CREATE] = extraData;
+    }
+
+    function proofSetDeleted(uint256 proofSetId, uint256, bytes calldata extraData) external {
+        extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.DELETE] = extraData;
+    }
+
+    function rootsAdded(uint256 proofSetId, uint256, PDPVerifier.RootData[] calldata, bytes calldata extraData) external {
+        extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.ADD] = extraData;
+    }
+
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata, bytes calldata extraData) external {
+        extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.REMOVE_SCHEDULED] = extraData;
+    }
+
+    function posessionProven(uint256 proofSetId, uint256, uint256, uint256) external {}
+
+    function nextProvingPeriod(uint256 proofSetId, uint256, uint256, bytes calldata extraData) external {
+        extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD] = extraData;
+    }
+
+    function getExtraData(uint256 proofSetId, PDPRecordKeeper.OperationType opType) external view returns (bytes memory) {
+        return extraDataBySetId[proofSetId][opType];
+    }
+}
+
+contract PDPVerifierExtraDataTest is Test {
+    PDPVerifier pdpVerifier;
+    ExtraDataListener extraDataListener;
+    uint256 constant challengeFinalityDelay = 2;
+    bytes testExtraData = "test extra data";
+
+    function setUp() public {
+        PDPVerifier pdpVerifierImpl = new PDPVerifier();
+        bytes memory initializeData = abi.encodeWithSelector(
+            PDPVerifier.initialize.selector,
+            challengeFinalityDelay
+        );
+        MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
+        pdpVerifier = PDPVerifier(address(proxy));
+        extraDataListener = new ExtraDataListener();
+    }
+
+    function testExtraDataPropagation() public {
+        // Test CREATE operation
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(extraDataListener), testExtraData);
+        assertEq(
+            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.CREATE),
+            testExtraData,
+            "Extra data not propagated for CREATE"
+        );
+
+        // Test ADD operation
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
+        pdpVerifier.addRoots(setId, roots, testExtraData);
+        assertEq(
+            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.ADD),
+            testExtraData,
+            "Extra data not propagated for ADD"
+        );
+
+        // Test REMOVE_SCHEDULED operation
+        uint256[] memory rootIds = new uint256[](1);
+        rootIds[0] = 0;
+        pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
+        assertEq(
+            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED),
+            testExtraData,
+            "Extra data not propagated for REMOVE_SCHEDULED"
+        );
+
+        // Test NEXT_PROVING_PERIOD operation
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
+        assertEq(
+            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD),
+            testExtraData,
+            "Extra data not propagated for NEXT_PROVING_PERIOD"
+        );
+    }
+}
+
 contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
     PDPVerifier pdpVerifier;
     TestingRecordKeeperService listener;
