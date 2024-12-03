@@ -105,7 +105,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
         return 2880;
     }
 
-    // Number of epochs at the end of a proving period during which a 
+    // Number of epochs at the end of a proving period during which a
     // proof of possession can be submitted
     function challengeWindow() public pure returns (uint256) {
         return 60;
@@ -147,22 +147,23 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
     }
 
     // Listener interface methods
-    function proofSetCreated(uint256 proofSetId, address creator) external onlyPDPVerifier {
+    // Note we just drop the user defined extraData as this contract has no use for it
+    function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.CREATE, abi.encode(creator));
     }
 
-    function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount) external onlyPDPVerifier {
+    function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.DELETE, abi.encode(deletedLeafCount));
     }
 
-    function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] memory rootData) external onlyPDPVerifier {
+    function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] memory rootData, bytes calldata) external onlyPDPVerifier {
         if (firstAdded == 0) {
             provingDeadlines[proofSetId] = block.number + getMaxProvingPeriod();
         }
         receiveProofSetEvent(proofSetId, OperationType.ADD, abi.encode(firstAdded, rootData));
     }
 
-    function rootsScheduledRemove(uint256 proofSetId, uint256[] memory rootIds) external onlyPDPVerifier {
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] memory rootIds, bytes calldata) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
     }
 
@@ -187,7 +188,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
     }
 
     // nextProvingPeriod checks for unsubmitted proof and emits a fault if so
-    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount) external onlyPDPVerifier {
+    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata) external onlyPDPVerifier {
         receiveProofSetEvent(proofSetId, OperationType.NEXT_PROVING_PERIOD, abi.encode(challengeEpoch, leafCount));
         // Noop when proving period not yet open
         // Can only get here if calling nextProvingPeriod multiple times within the same proving period
@@ -217,7 +218,7 @@ contract SimplePDPService is PDPListener, PDPRecordKeeper, Initializable, UUPSUp
         if (faultPeriods > 0) {
             emit FaultRecord(faultPeriods);
         }
-        provingDeadlines[proofSetId] = nextDeadline; 
+        provingDeadlines[proofSetId] = nextDeadline;
         provenThisPeriod[proofSetId] = false;
     }
 }
