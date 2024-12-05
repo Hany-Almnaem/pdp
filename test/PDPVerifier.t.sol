@@ -466,7 +466,7 @@ contract PDPVerifierProofSetMutateTest is Test {
 }
 
 contract ProofBuilderHelper is Test {
-    // Builds a proof of posession for a proof set
+    // Builds a proof of possession for a proof set
     function buildProofs(PDPVerifier pdpVerifier, uint256 setId, uint challengeCount, bytes32[][][] memory trees, uint[] memory leafCounts) internal view returns (PDPVerifier.Proof[] memory) {
         uint256 challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
         uint256 seed = challengeEpoch; // Seed is (temporarily) the challenge epoch
@@ -528,7 +528,7 @@ contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
     }
 
-    function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external override {
+    function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external override {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
     }
 
@@ -1202,7 +1202,7 @@ contract BadListener is PDPListener {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
     }
 
-    function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external view {
+    function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
     }
 
@@ -1288,7 +1288,7 @@ contract ExtraDataListener is PDPListener {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.REMOVE_SCHEDULED] = extraData;
     }
 
-    function posessionProven(uint256 proofSetId, uint256, uint256, uint256) external {}
+    function possessionProven(uint256 proofSetId, uint256, uint256, uint256) external {}
 
     function nextProvingPeriod(uint256 proofSetId, uint256, uint256, bytes calldata extraData) external {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD] = extraData;

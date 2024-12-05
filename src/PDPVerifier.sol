@@ -16,7 +16,7 @@ interface PDPListener {
     function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] memory rootData, bytes calldata extraData) external;
     function rootsScheduledRemove(uint256 proofSetId, uint256[] memory rootIds, bytes calldata extraData) external;
     // Note: extraData not included as proving messages conceptually always originate from the SP 
-    function posessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
+    function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
     function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata extraData) external;
 }
 
@@ -389,7 +389,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
-            PDPListener(listenerAddr).posessionProven(setId, proofSetLeafCount[setId], seed, proofs.length);
+            PDPListener(listenerAddr).possessionProven(setId, proofSetLeafCount[setId], seed, proofs.length);
         }
     }
 
