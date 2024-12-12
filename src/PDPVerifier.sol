@@ -81,8 +81,10 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // randomness sampling for challenge generation.
     //
     // The purpose of this delay is to prevent SPs from biasing randomness by running forking attacks.
-    // This is actually not possible with the challenge sampling method written here. Qe sample from DRAND
-    // and forking attacks are unrelated to biasability, hence challengeFinality = 1 is a safe value.
+    // Given a small enough challengeFinality an SP can run several trials of challenge sampling and 
+    // fork around samples that don't suit them, grinding the challenge randomness.
+    // For the filecoin L1, a safe value is 150 using the same analysis setting 150 epochs between
+    // PoRep precommit and PoRep provecommit phases.
     //
     // We keep this around for future portability to a variety of environments with different assumptions
     // behind their challenge randomness sampling methods.
@@ -394,6 +396,16 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 sumTreeTop = 256 - BitOps.clz(nextRootId[setId]);
         for (uint64 i = 0; i < proofs.length; i++) {
             // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
+            // Note -- there is a slight deviation here from the uniform distribution.
+            // Some leaves are challenged with probability p and some have probability p + deviation. 
+            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash
+            // Assuming a 1000EiB = 1 ZiB network size ~ 2^70 bytes of data or 2^65 leaves
+            // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.            
+            //   If modifying this code to use a hash function with smaller output size 
+            //   this deviation will increase and caution is advised.
+            // To remove this deviation we could use the standard solution of rejection sampling
+            //   This is slightly more costly at one more hash on average for maximally misaligned proofsets
+            //   and comes at no practical benefit given how small the deviation is.
             bytes memory payload = abi.encodePacked(seed, setId, i);
             uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
 
