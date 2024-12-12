@@ -477,6 +477,11 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function nextProvingPeriod(uint256 setId, uint256 challengeEpoch, bytes calldata extraData) public {
         require(extraData.length <= EXTRA_DATA_MAX_SIZE, "Extra data too large");
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
+        
+        if (proofSetLastProvenEpoch[setId] == NO_PROVEN_EPOCH) {
+            proofSetLastProvenEpoch[setId] = block.number;
+        }
+
         // Take removed roots out of proving set
         uint256[] storage removals = scheduledRemovals[setId];
         uint256[] memory removalsToProcess = new uint256[](removals.length);
