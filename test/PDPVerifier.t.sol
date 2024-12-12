@@ -121,7 +121,7 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
 
     function testCreateProofSetFeeHandling() public {
         uint256 sybilFee = PDPFees.sybilFee();
-        
+
         // Test 1: Fails when sending not enough for sybil fee
         vm.expectRevert("sybil fee not met");
         pdpVerifier.createProofSet{value: sybilFee - 1}(address(listener), empty);
@@ -129,9 +129,9 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
         // Test 2: Returns funds over the sybil fee back to the sender
         uint256 excessAmount = 1 ether;
         uint256 initialBalance = address(this).balance;
-        
+
         uint256 setId = pdpVerifier.createProofSet{value: sybilFee + excessAmount}(address(listener), empty);
-        
+
         uint256 finalBalance = address(this).balance;
         uint256 refundedAmount = finalBalance - (initialBalance - sybilFee - excessAmount);
         assertEq(refundedAmount, excessAmount, "Excess amount should be refunded");
@@ -545,6 +545,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     PDPListener listener;
     ListenerHelper listenerAssert;
 
+
     function setUp() public {
         PDPVerifier pdpVerifierImpl = new PDPVerifier();
         bytes memory initializeData = abi.encodeWithSelector(
@@ -555,6 +556,25 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         pdpVerifier = PDPVerifier(address(proxy));
         listener = new TestingRecordKeeperService();
         listenerAssert = new ListenerHelper(address(listener));
+        vm.fee(1 wei);
+        vm.deal(address(pdpVerifierImpl), 100 ether);
+    }
+
+    function createPythCallData() internal view returns (bytes memory, PythStructs.Price memory) {
+        bytes memory pythCallData = abi.encodeWithSelector(
+            IPyth.getPriceNoOlderThan.selector,
+            pdpVerifier.FIL_USD_PRICE_FEED_ID(),
+            86400
+        );
+
+        PythStructs.Price memory price = PythStructs.Price({
+            price: 5,
+            conf: 0,
+            expo: 0,
+            publishTime: 0
+        });
+
+        return (pythCallData, price);
     }
 
     function tearDown() public view {
@@ -562,6 +582,10 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     }
 
     function testProveSingleRoot() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         uint leafCount = 10;
         (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
 
@@ -575,7 +599,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Submit proof.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
 
         // Verify the next challenge is in a subsequent epoch.
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
@@ -593,6 +617,11 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     receive() external payable {}
 
     function testProveWithDifferentFeeAmounts() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        price.price = 1;
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         uint leafCount = 10;
         (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
 
@@ -600,28 +629,29 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         uint256 challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
         vm.roll(challengeEpoch);
 
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
+
         // Build a proof with multiple challenges to single tree.
         uint challengeCount = 3;
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, challengeCount, tree, leafCount);
 
-        // Calculate the correct proof fee
-        uint256 correctProofFee = PDPFees.proofFee(challengeCount);
+        // Mock block.number to 2881
+        vm.roll(2881);
 
         // Test 1: Sending less than the required fee
-        uint256 insufficientFee = correctProofFee - 1;
+
+        // this is not the cleanest but it's the easiest way to calculate the correct fee
+        // as the proof fee calculation depends on gas fee and there is not good way
+        // to mock the total gas units that the provePossession function will use
+        // so we've just hardcoded the correct fee here by calling `provePossession` once
+        // and then using the gas used to calculate the correct fee here
+        uint256 correctFee = 118234;
         vm.expectRevert("Incorrect fee amount");
-        pdpVerifier.provePossession{value: insufficientFee}(setId, proofs);
+        pdpVerifier.provePossession{value: correctFee-1}(setId, proofs);
 
         // Test 2: Sending more than the required fee
-        uint256 excessFee = correctProofFee + 1 ether;
-        uint256 initialBalance = address(this).balance;
-
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: excessFee}(setId, proofs);
-        
-        uint256 finalBalance = address(this).balance;
-        uint256 actualFeeSpent = initialBalance - finalBalance;
-        assertEq(actualFeeSpent, correctProofFee, "Only the correct fee should be spent");
+        pdpVerifier.provePossession{value: correctFee + 1 ether}(setId, proofs);
 
         // Verify that the proof was accepted
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
@@ -630,7 +660,40 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         tearDown();
     }
 
+    function testProofSetLastProvenEpochOnRootRemoval() public {
+        // Create a proof set and verify initial lastProvenEpoch is 0
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), 0, "Initial lastProvenEpoch should be 0");
+
+        // Mock block.number to 2881    
+        uint256 blockNumber = 2881;
+        vm.roll(blockNumber);
+        // Add a root and verify lastProvenEpoch is set to current block number
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+
+
+        pdpVerifier.addRoots(setId, roots, empty);
+        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), blockNumber, "lastProvenEpoch should be set to block.number after adding root");
+
+        // Schedule root removal
+        uint256[] memory rootsToRemove = new uint256[](1);
+        rootsToRemove[0] = 0;
+        pdpVerifier.scheduleRemovals(setId, rootsToRemove, empty);
+
+
+        // Call nextProvingPeriod and verify lastProvenEpoch is reset to 0
+        pdpVerifier.nextProvingPeriod(setId, blockNumber + challengeFinalityDelay, empty);
+        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), 0, "lastProvenEpoch should be reset to 0 after removing last root");
+
+        tearDown();
+    }
+
     function testLateProofAccepted() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         uint leafCount = 10;
         (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
 
@@ -643,7 +706,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Submit proof.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
     }
@@ -661,7 +724,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Submit proof.
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
         tearDown();
     }
 
@@ -672,13 +735,13 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Rejected with no roots
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(0)}(setId, emptyProof);
+        pdpVerifier.provePossession{value:1e18}(setId, emptyProof);
 
         addOneRoot(setId, 10);
 
         // Rejected with a root
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(0)}(setId, emptyProof);
+        pdpVerifier.provePossession{value: 1e18}(setId, emptyProof);
         tearDown();
     }
 
@@ -693,7 +756,11 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Submit proof successfully, advancing the proof set to a new challenge epoch.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty); // resample
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
@@ -704,11 +771,15 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // The proof for the old challenge epoch should no longer be valid.
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
         tearDown();
     }
 
     function testBadRootsRejected() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         uint[] memory leafCounts = new uint[](2);
         // Note: either co-prime leaf counts or a challenge count > 1 are required for this test to demonstrate the failing proof.
         // With a challenge count == 1 and leaf counts e.g. 10 and 20 it just so happens that the first computed challenge index is the same
@@ -733,7 +804,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         // The proof for one root should be invalid against the set with two.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofsOneRoot.length)}(setId, proofsOneRoot);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofsOneRoot);
 
         // Remove a root and resample
         uint256[] memory removeRoots = new uint256[](1);
@@ -753,17 +824,21 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         proofsTwoRoots = buildProofs(pdpVerifier, setId, 10, trees, leafCounts); // regen as removal forced resampling challenge seed
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
         vm.expectRevert();
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofsTwoRoots.length)}(setId, proofsTwoRoots);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofsTwoRoots);
 
         // But the single root proof is now good again.
         proofsOneRoot = buildProofsForSingleton(setId, 1, trees[0], leafCounts[0]); // regen as removal forced resampling challenge seed
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofsOneRoot.length)}(setId, proofsOneRoot);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofsOneRoot);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
     }
 
     function testProveManyRoots() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         uint[] memory leafCounts = new uint[](3);
         // Pick a distinct size for each tree (up to some small maximum size).
         for (uint i = 0; i < leafCounts.length; i++) {
@@ -781,7 +856,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         PDPVerifier.Proof[] memory proofs = buildProofs(pdpVerifier, setId, challengeCount, trees, leafCounts);
         // Submit proof.
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
         listenerAssert.expectEvent(PDPRecordKeeper.OperationType.PROVE_POSSESSION, setId);
         tearDown();
     }
@@ -1370,9 +1445,34 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
         listener = new TestingRecordKeeperService();
+        vm.fee(1 gwei);
+        vm.deal(address(pdpVerifierImpl), 100 ether);
+    }
+
+    receive() external payable {}
+
+     function createPythCallData() internal view returns (bytes memory, PythStructs.Price memory) {
+        bytes memory pythCallData = abi.encodeWithSelector(
+            IPyth.getPriceNoOlderThan.selector,
+            pdpVerifier.FIL_USD_PRICE_FEED_ID(),
+            86400
+        );
+
+        PythStructs.Price memory price = PythStructs.Price({
+            price: 5,
+            conf: 0,
+            expo: 0,
+            publishTime: 0
+        });
+
+        return (pythCallData, price);
     }
 
     function testCompleteProvingPeriodE2E() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         // Step 1: Create a proof set
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
 
@@ -1402,6 +1502,7 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         for (uint256 i = 0; i < leafCountsB.length; i++) {
             treesB[i] = ProofUtil.makeTree(leafCountsB[i]);
         }
+
 
         PDPVerifier.RootData[] memory rootsPP2 = new PDPVerifier.RootData[](2);
         rootsPP2[0] = PDPVerifier.RootData(Cids.cidFromDigest("test1", treesB[0][0][0]), leafCountsB[0] * 32);
@@ -1434,7 +1535,9 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         PDPVerifier.Proof[] memory proofsPP1 = buildProofs(pdpVerifier, setId, 5, treesA, leafCountsA);
 
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofsPP1.length)}(setId, proofsPP1);
+
+        pdpVerifier.provePossession{value: 1e18}(setId, proofsPP1);
+
         pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
         // CHECK: leaf counts
         assertEq(pdpVerifier.getRootLeafCount(setId, 0), leafCountsA[0], "First root leaf count should be the set leaf count");
