@@ -671,12 +671,12 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Test 1: Sending less than the required fee
 
-        // this is not the cleanest but it's the easiest way to calculate the correct fee
-        // as the proof fee calculation depends on gas fee and there is not good way
-        // to mock the total gas units that the provePossession function will use
-        // so we've just hardcoded the correct fee here by calling `provePossession` once
-        // and then using the gas used to calculate the correct fee here
-        uint256 correctFee = 118234;
+        // This is not the cleanest but recording a previous measurement of the correct fee
+        // is our only option as the proof fee calculation depends on gas which depends on 
+        // the method implementation. 
+        // To fix this method when changing code in provePossession run forge test -vvvv
+        // to get a trace, and read out the fee value from the ProofFeePaid event.
+        uint256 correctFee = 117672;
         vm.expectRevert("Incorrect fee amount");
         pdpVerifier.provePossession{value: correctFee-1}(setId, proofs);
 
@@ -705,7 +705,8 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
 
         pdpVerifier.addRoots(setId, roots, empty);
-        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), blockNumber, "lastProvenEpoch should be set to block.number after adding root");
+        pdpVerifier.nextProvingPeriod(setId, blockNumber + challengeFinalityDelay, empty);
+        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), blockNumber, "lastProvenEpoch should be set to block.number after first proving period root");
 
         // Schedule root removal
         uint256[] memory rootsToRemove = new uint256[](1);
@@ -893,6 +894,10 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     }
 
     function testNextProvingPeriodFlexibleScheduling() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
         // Create proof set and add initial root
         uint leafCount = 10;
         (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
