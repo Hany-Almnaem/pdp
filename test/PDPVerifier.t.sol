@@ -912,7 +912,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, 5, tree, 10);
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(nearerBlock), abi.encode(nearerBlock));
-        pdpVerifier.provePossession{value: PDPFees.proofFee(proofs.length)}(setId, proofs);
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
     }
 
 
