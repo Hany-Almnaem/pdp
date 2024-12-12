@@ -76,7 +76,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // The purpose of this delay is to prevent SPs from biasing randomness by running forking attacks.
     // Given a small enough challengeFinality an SP can run several trials of challenge sampling and 
     // fork around samples that don't suit them, grinding the challenge randomness.
-    // For the filecoin L1, a safe value is 150.
+    // For the filecoin L1, a safe value is 150 using the same analysis setting 150 epochs between
+    // PoRep precommit and PoRep provecommit phases.
     //
     // We keep this around for future portability to a variety of environments with different assumptions
     // behind their challenge randomness sampling methods.
@@ -391,6 +392,9 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.            
             //   If modifying this code to use a hash function with smaller output size 
             //   this deviation will increase and caution is advised.
+            // To remove this deviation we could use the standard solution of rejection sampling
+            //   This is slightly more costly at one more hash on average for maximally misaligned proofsets
+            //   and comes at no practical benefit given how small the deviation is.
             bytes memory payload = abi.encodePacked(seed, setId, i);
             uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
 
