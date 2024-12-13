@@ -385,8 +385,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(block.number >= challengeEpoch, "premature proof");
         require(proofs.length > 0, "empty proof");
         require(challengeEpoch != NO_CHALLENGE_SCHEDULED, "no challenge scheduled");
-        require(proofSetOwner[setId] == msg.sender, "only the owner can prove possession");
-
+        
         uint256 seed = drawChallengeSeed(setId);
         uint256 leafCount = challengeRange[setId];
         uint256 sumTreeTop = 256 - BitOps.clz(nextRootId[setId]);
