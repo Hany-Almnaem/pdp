@@ -127,7 +127,7 @@ contract SimplePDPServiceTest is Test {
         pdpService.nextProvingPeriod(proofSetId, pdpService.initChallengeWindowStart(), leafCount, empty);
         
         // Prove possession in first period
-        vm.roll(block.number + pdpService.getMaxProvingPeriod() - 100);
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() - pdpService.challengeWindow());
         pdpService.possessionProven(proofSetId, leafCount, seed, 5);
         
         // Inactivate the proof set
@@ -171,12 +171,12 @@ contract SimplePDPServiceFaultsTest is Test {
         // Set up the proving deadline
         pdpService.rootsAdded(proofSetId, 0, new PDPVerifier.RootData[](0), empty);
         pdpService.nextProvingPeriod(proofSetId, pdpService.initChallengeWindowStart(), leafCount, empty);
-        vm.roll(block.number + pdpService.getMaxProvingPeriod());
+        vm.roll(block.number + pdpService.getMaxProvingPeriod() - pdpService.challengeWindow());
         pdpService.possessionProven(proofSetId, leafCount, seed, challengeCount);
         assertTrue(pdpService.provenThisPeriod(proofSetId));
 
         pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount, empty);
-        vm.roll(block.number + 1);
+        vm.roll(block.number + pdpService.getMaxProvingPeriod());
         pdpService.possessionProven(proofSetId, leafCount, seed, challengeCount);
     }
 
@@ -325,7 +325,7 @@ contract SimplePDPServiceFaultsTest is Test {
         vm.roll(block.number + pdpService.getMaxProvingPeriod() - pdpService.challengeWindow());
         pdpService.possessionProven(proofSetId, leafCount, seed, 5);
         pdpService.nextProvingPeriod(proofSetId, pdpService.nextChallengeWindowStart(proofSetId), leafCount, empty);
-        vm.expectRevert("Too early. Wait for challenge windowto open");
+        vm.expectRevert("Too early. Wait for challenge window to open");
         pdpService.possessionProven(proofSetId, leafCount, seed, 5);
     }
 
