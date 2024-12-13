@@ -42,6 +42,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     event RootsAdded(uint256 indexed firstAdded);
     event RootsRemoved(uint256[] indexed rootIds);
     event ProofFeePaid(uint256 indexed setId, uint256 fee, uint64 price, int32 expo);
+    event ProofSetEmpty(uint256 indexed setId);
 
     // Types
     // State fields
@@ -305,7 +306,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // Appends new roots to the collection managed by a proof set.
-    // These roots won't be challenged until the next proving period.
+    // These roots won't be challenged until the next proving period is 
+    // started by calling nextProvingPeriod.
     function addRoots(uint256 setId, RootData[] calldata rootData, bytes calldata extraData) public returns (uint256) {
         require(extraData.length <= EXTRA_DATA_MAX_SIZE, "Extra data too large");
         require(proofSetLive(setId), "Proof set not live");
@@ -477,6 +479,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function nextProvingPeriod(uint256 setId, uint256 challengeEpoch, bytes calldata extraData) public {
         require(extraData.length <= EXTRA_DATA_MAX_SIZE, "Extra data too large");
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
+        require(proofSetLeafCount[setId] > 0, "can only start proving once leaves are added");
         
         if (proofSetLastProvenEpoch[setId] == NO_PROVEN_EPOCH) {
             proofSetLastProvenEpoch[setId] = block.number;
@@ -502,6 +505,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Clear next challenge epoch if the set is now empty.
         // It will be re-set after new data is added and nextProvingPeriod is called.
         if (proofSetLeafCount[setId] == 0) {
+            emit ProofSetEmpty(setId);
             proofSetLastProvenEpoch[setId] = NO_PROVEN_EPOCH;
             nextChallengeEpoch[setId] = NO_CHALLENGE_SCHEDULED;
         }

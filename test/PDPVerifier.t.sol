@@ -480,17 +480,14 @@ contract PDPVerifierProofSetMutateTest is Test {
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), NO_CHALLENGE, "Initial state should be NO_CHALLENGE");
         
         // Try to set next proving period with various values
+        vm.expectRevert("can only start proving once leaves are added");
         pdpVerifier.nextProvingPeriod(setId, block.number + 100, empty);
-        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
-        assertEq(pdpVerifier.getNextChallengeEpoch(setId), NO_CHALLENGE, "Should remain NO_CHALLENGE after setting future block");
         
+        vm.expectRevert("can only start proving once leaves are added");
         pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
-        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
-        assertEq(pdpVerifier.getNextChallengeEpoch(setId), NO_CHALLENGE, "Should remain NO_CHALLENGE after setting zero");
-        
+
+        vm.expectRevert("can only start proving once leaves are added");
         pdpVerifier.nextProvingPeriod(setId, type(uint256).max, empty);
-        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
-        assertEq(pdpVerifier.getNextChallengeEpoch(setId), NO_CHALLENGE, "Should remain NO_CHALLENGE after setting max uint");
         
         tearDown();
     }
