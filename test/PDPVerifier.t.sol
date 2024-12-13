@@ -506,6 +506,38 @@ contract PDPVerifierProofSetMutateTest is Test {
             empty
         );
     }
+
+    function testEmitProofSetEmptyEvent() public {
+        // Create a proof set with one root
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.CREATE, setId);
+        
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        pdpVerifier.addRoots(setId, roots, empty);
+        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.ADD, setId);
+
+        // Schedule root for removal
+        uint256[] memory toRemove = new uint256[](1);
+        toRemove[0] = 0;
+        pdpVerifier.scheduleRemovals(setId, toRemove, empty);
+        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, setId);
+
+        // Expect ProofSetEmpty event when calling nextProvingPeriod
+        vm.expectEmit(true, false, false, false);
+        emit PDPVerifier.ProofSetEmpty(setId);
+        
+        // Call nextProvingPeriod which should remove the root and emit the event
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
+        listenerAssert.expectEvent(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, setId);
+
+        // Verify the proof set is indeed empty
+        assertEq(pdpVerifier.getProofSetLeafCount(setId), 0);
+        assertEq(pdpVerifier.getNextChallengeEpoch(setId), 0);
+        assertEq(pdpVerifier.getProofSetLastProvenEpoch(setId), 0);
+        
+        tearDown();
+    }
 }
 
 contract ProofBuilderHelper is Test {
