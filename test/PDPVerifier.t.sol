@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
 import {Test, console} from "forge-std/Test.sol";
@@ -490,6 +491,20 @@ contract PDPVerifierProofSetMutateTest is Test {
         pdpVerifier.nextProvingPeriod(setId, type(uint256).max, empty);
         
         tearDown();
+    }
+    
+    function testNextProvingPeriodRevertsOnEmptyProofSet() public {
+        // Create a new proof set
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        
+        // Try to call nextProvingPeriod on the empty proof set
+        // Should revert because no leaves have been added yet
+        vm.expectRevert("can only start proving once leaves are added");
+        pdpVerifier.nextProvingPeriod(
+            setId,
+            block.number + challengeFinalityDelay,
+            empty
+        );
     }
 }
 
@@ -1016,9 +1031,6 @@ contract SumTreeHeightTest is Test {
         }
     }
 }
-
-// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "../src/PDPVerifier.sol";
