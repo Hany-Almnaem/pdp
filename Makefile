@@ -2,7 +2,7 @@
 
 # Variables
 RPC_URL ?=
-KEYSTORE_PATH ?=
+KEYSTORE ?=
 PASSWORD ?=
 CHALLENGE_FINALITY ?=
 
