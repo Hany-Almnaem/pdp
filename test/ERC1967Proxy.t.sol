@@ -59,4 +59,34 @@ contract ERC1967ProxyTest is Test {
         assertEq(proxy.getChallengeFinality(), 150); // State is preserved
         assertEq(proxy.owner(), owner); // Owner is preserved
     }
+
+    function testOwnershipTransfer() public {
+        vm.stopPrank();
+        vm.startPrank(owner);
+        // Verify initial owner
+        assertEq(proxy.owner(), owner);
+
+        address newOwner = address(0x123);
+
+        // Transfer ownership
+        proxy.transferOwnership(newOwner);
+        
+        // Verify ownership changed
+        assertEq(proxy.owner(), newOwner);
+    }
+
+    function testFailTransferFromNonOwner() public {
+        // Switch to non-owner account
+        vm.stopPrank();
+        vm.startPrank(address(0xdead));
+
+        address newOwner = address(0x123);
+
+        // Attempt transfer should fail
+        vm.expectRevert("Ownable: caller is not the owner");
+        proxy.transferOwnership(newOwner);
+
+        // Verify owner unchanged
+        assertEq(proxy.owner(), owner);
+    }
 }
