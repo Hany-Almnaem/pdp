@@ -26,6 +26,7 @@ echo
 #####################################
 echo "Deriving deployer address from private key ..."
 DEPLOYER_ADDRESS=$(cast wallet address "$FIL_CALIBNET_PRIVATE_KEY")
+NONCE="$(cast nonce --rpc-url "$FIL_CALIBNET_RPC_URL" "$DEPLOYER_ADDRESS")"
 echo "Deployer address: $DEPLOYER_ADDRESS"
 echo
 
@@ -38,13 +39,15 @@ DEPLOY_OUTPUT_VERIFIER=$(
     --rpc-url "$FIL_CALIBNET_RPC_URL" \
     --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
     --chain-id "$CHAIN_ID" \
-    --compiler-version "$COMPILER_VERSION" \
-    --json \
+    --broadcast \
+    --nonce $NONCE \
     src/PDPVerifier.sol:PDPVerifier
 )
+NONCE=$(expr $NONCE + "1")
+
 
 # Extract the deployed address from JSON output
-PDP_VERIFIER_ADDRESS=$(echo "$DEPLOY_OUTPUT_VERIFIER" | jq -r '.deployedTo')
+PDP_VERIFIER_ADDRESS=$(echo "$DEPLOY_OUTPUT_VERIFIER" | grep "Deployed to" | awk '{print $3}')
 echo "PDPVerifier deployed at: $PDP_VERIFIER_ADDRESS"
 echo
 
@@ -57,14 +60,16 @@ DEPLOY_OUTPUT_PROXY=$(
     --rpc-url "$FIL_CALIBNET_RPC_URL" \
     --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
     --chain-id "$CHAIN_ID" \
-    --compiler-version "$COMPILER_VERSION" \
+    --broadcast \
+    --nonce $NONCE \ 
     --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA" \
-    --json \
     src/ERC1967Proxy.sol:MyERC1967Proxy
 )
+NONCE=$(expr $NONCE + "1")
+
 
 # Extract the deployed proxy address
-PROXY_ADDRESS=$(echo "$DEPLOY_OUTPUT_PROXY" | jq -r '.deployedTo')
+PROXY_ADDRESS=$(echo "$DEPLOY_OUTPUT_PROXY" | grep "Deployed to" | awk '{print $3}')
 echo "Proxy deployed at: $PROXY_ADDRESS"
 echo
 
@@ -127,10 +132,12 @@ echo "Transferring ownership to new owner..."
 cast send \
   --rpc-url "$FIL_CALIBNET_RPC_URL" \
   --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
+  --nonce $NONCE
   --chain-id "$CHAIN_ID" \
   "$PROXY_ADDRESS" \
   "transferOwnership(address)" \
   "$NEW_OWNER"
+NONCE=$(expr $NONCE + "1")
 
 echo "✓ Ownership transfer transaction submitted"
 
