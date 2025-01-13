@@ -62,8 +62,7 @@ DEPLOY_OUTPUT_PROXY=$(
     --chain-id "$CHAIN_ID" \
     --broadcast \
     --nonce $NONCE \ 
-    --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA" \
-    src/ERC1967Proxy.sol:MyERC1967Proxy
+    src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA" 
 )
 NONCE=$(expr $NONCE + "1")
 
