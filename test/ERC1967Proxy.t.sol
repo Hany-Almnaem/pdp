@@ -36,14 +36,22 @@ contract ERC1967ProxyTest is Test {
         assertEq(proxy.owner(), owner);
     }
 
+    function assertImplementationEquals(address checkImpl) public view {
+        bytes32 implementationSlot = 0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc;
+        assertEq(address(uint160(uint256(vm.load(address(proxy), implementationSlot)))), address(checkImpl));
+    }
+
     function testUpgradeImplementation() public {
+        assertImplementationEquals(address(implementation));
+
         // Deploy new implementation
         PDPVerifier newImplementation = new PDPVerifier();
-
+    
         // Upgrade proxy to new implementation
         proxy.upgradeToAndCall(address(newImplementation), "");
 
         // Verify upgrade was successful
+        assertImplementationEquals(address(newImplementation));
         assertEq(proxy.getChallengeFinality(), 150); // State is preserved
         assertEq(proxy.owner(), owner); // Owner is preserved
     }
