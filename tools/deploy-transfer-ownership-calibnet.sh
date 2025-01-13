@@ -55,15 +55,7 @@ echo
 # 3. Deploy Proxy contract          #
 #####################################
 echo "Deploying Proxy contract (MyERC1967Proxy) ..."
-DEPLOY_OUTPUT_PROXY=$(
-  forge create \
-    --rpc-url "$FIL_CALIBNET_RPC_URL" \
-    --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
-    --chain-id "$CHAIN_ID" \
-    --broadcast \
-    --nonce $NONCE \ 
-    src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA" 
-)
+DEPLOY_OUTPUT_PROXY=$(forge create --rpc-url "$FIL_CALIBNET_RPC_URL"   --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" --broadcast --nonce $NONCE src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA")
 NONCE=$(expr $NONCE + "1")
 
 
