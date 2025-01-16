@@ -8,9 +8,6 @@ set -euo pipefail
 : "${FIL_CALIBNET_RPC_URL:?FIL_CALIBNET_RPC_URL not set. Please export it and rerun.}"
 : "${FIL_CALIBNET_PRIVATE_KEY:?FIL_CALIBNET_PRIVATE_KEY not set. Please export it and rerun.}"
 : "${NEW_OWNER:?NEW_OWNER not set. Please export it and rerun.}"
-: "${UPGRADED_VERIFIER_CONTRACT:?UPGRADED_VERIFIER_CONTRACT not set. Please export it and rerun.}"
-
-
 
 
 CHAIN_ID="${CHAIN_ID:-314159}"
@@ -29,6 +26,7 @@ echo
 #####################################
 echo "Deriving deployer address from private key ..."
 DEPLOYER_ADDRESS=$(cast wallet address "$FIL_CALIBNET_PRIVATE_KEY")
+NONCE="$(cast nonce --rpc-url "$FIL_CALIBNET_RPC_URL" "$DEPLOYER_ADDRESS")"
 echo "Deployer address: $DEPLOYER_ADDRESS"
 echo
 
@@ -41,13 +39,15 @@ DEPLOY_OUTPUT_VERIFIER=$(
     --rpc-url "$FIL_CALIBNET_RPC_URL" \
     --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
     --chain-id "$CHAIN_ID" \
-    --compiler-version "$COMPILER_VERSION" \
-    --json \
+    --broadcast \
+    --nonce $NONCE \
     src/PDPVerifier.sol:PDPVerifier
 )
+NONCE=$(expr $NONCE + "1")
+
 
 # Extract the deployed address from JSON output
-PDP_VERIFIER_ADDRESS=$(echo "$DEPLOY_OUTPUT_VERIFIER" | jq -r '.deployedTo')
+PDP_VERIFIER_ADDRESS=$(echo "$DEPLOY_OUTPUT_VERIFIER" | grep "Deployed to" | awk '{print $3}')
 echo "PDPVerifier deployed at: $PDP_VERIFIER_ADDRESS"
 echo
 
@@ -55,19 +55,12 @@ echo
 # 3. Deploy Proxy contract          #
 #####################################
 echo "Deploying Proxy contract (MyERC1967Proxy) ..."
-DEPLOY_OUTPUT_PROXY=$(
-  forge create \
-    --rpc-url "$FIL_CALIBNET_RPC_URL" \
-    --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
-    --chain-id "$CHAIN_ID" \
-    --compiler-version "$COMPILER_VERSION" \
-    --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA" \
-    --json \
-    src/ERC1967Proxy.sol:MyERC1967Proxy
-)
+DEPLOY_OUTPUT_PROXY=$(forge create --rpc-url "$FIL_CALIBNET_RPC_URL"   --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" --broadcast --nonce $NONCE src/ERC1967Proxy.sol:MyERC1967Proxy --constructor-args "$PDP_VERIFIER_ADDRESS" "$INIT_DATA")
+NONCE=$(expr $NONCE + "1")
+
 
 # Extract the deployed proxy address
-PROXY_ADDRESS=$(echo "$DEPLOY_OUTPUT_PROXY" | jq -r '.deployedTo')
+PROXY_ADDRESS=$(echo "$DEPLOY_OUTPUT_PROXY" | grep "Deployed to" | awk '{print $3}')
 echo "Proxy deployed at: $PROXY_ADDRESS"
 echo
 
@@ -100,12 +93,9 @@ echo
 IMPLEMENTATION_SLOT="0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
 
 echo "Checking proxy's implementation address from storage slot $IMPLEMENTATION_SLOT ..."
-IMPLEMENTATION_ADDRESS=$(
-  cast storage \
-    --rpc-url "$FIL_CALIBNET_RPC_URL" \
-    "$PROXY_ADDRESS" \
-    "$IMPLEMENTATION_SLOT"
-)
+sleep 35
+IMPLEMENTATION_ADDRESS=$(cast storage --rpc-url "$FIL_CALIBNET_RPC_URL" "$PROXY_ADDRESS" "$IMPLEMENTATION_SLOT")
+
 echo "Implementation address in Proxy: $IMPLEMENTATION_ADDRESS"
 echo
 
@@ -124,37 +114,33 @@ echo "========================================"
 #####################################
 # 6. Upgrade proxy                  #
 #####################################
+
+echo "Deploying a new PDPVerifier contract ..."
+DEPLOY_OUTPUT_VERIFIER_2=$(forge create --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" src/PDPVerifier.sol:PDPVerifier)
+PDP_VERIFIER_ADDRESS_2=$(echo "$DEPLOY_OUTPUT_VERIFIER_2" | grep "Deployed to" | awk '{print $3}')
+echo "PDPVerifier deployed at: $PDP_VERIFIER_ADDRESS_2"
+echo
+
 echo
 echo "Upgrading proxy to new implementation..."
 
-cast send \
-  --rpc-url "$FIL_CALIBNET_RPC_URL" \
-  --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
-  --chain-id "$CHAIN_ID" \
-  "$PROXY_ADDRESS" \
-  "upgradeToAndCall(address,bytes)" \
-  "$PDP_VERIFIER_ADDRESS" \
-  "0x"
+cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "upgradeToAndCall(address,bytes)" "$PDP_VERIFIER_ADDRESS_2" "0x"
 
 echo "✓ Upgrade transaction submitted"
 
 # Verify the upgrade
 echo "Verifying new implementation..."
-NEW_IMPLEMENTATION_ADDRESS=$(
-  cast storage \
-    --rpc-url "$FIL_CALIBNET_RPC_URL" \
-    "$PROXY_ADDRESS" \
-    "$IMPLEMENTATION_SLOT"
-)
+sleep 35
+NEW_IMPLEMENTATION_ADDRESS=$(cast storage --rpc-url "$FIL_CALIBNET_RPC_URL" "$PROXY_ADDRESS" "$IMPLEMENTATION_SLOT")
 
-if [ "${NEW_IMPLEMENTATION_ADDRESS,,}" != "${PDP_VERIFIER_ADDRESS,,}" ]; then
+if [ "${NEW_IMPLEMENTATION_ADDRESS,,}" != "${PDP_VERIFIER_ADDRESS_2,,}" ]; then
     echo "failed to upgrade implementation"
-    echo "Expected new implementation to be: ${PDP_VERIFIER_ADDRESS}"
+    echo "Expected new implementation to be: ${PDP_VERIFIER_ADDRESS_2}"
     echo "Got: ${NEW_IMPLEMENTATION_ADDRESS}"
     exit 1
 fi
 
-echo "✓ Proxy upgraded successfully to ${PDP_VERIFIER_ADDRESS}"
+echo "✓ Proxy upgraded successfully to ${PDP_VERIFIER_ADDRESS_2}"
 echo
 
 #####################################
@@ -163,13 +149,8 @@ echo
 echo
 echo "Transferring ownership to new owner..."
 
-cast send \
-  --rpc-url "$FIL_CALIBNET_RPC_URL" \
-  --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
-  --chain-id "$CHAIN_ID" \
-  "$PROXY_ADDRESS" \
-  "transferOwnership(address)" \
-  "$NEW_OWNER"
+cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --nonce $NONCE --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "transferOwnership(address)" "$NEW_OWNER"
+NONCE=$(expr $NONCE + "1")
 
 echo "✓ Ownership transfer transaction submitted"
 
@@ -191,4 +172,3 @@ fi
 
 echo "✓ Ownership transferred successfully to ${NEW_OWNER}"
 echo
-
