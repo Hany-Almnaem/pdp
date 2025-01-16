@@ -116,7 +116,8 @@ echo "========================================"
 #####################################
 
 echo "Deploying a new PDPVerifier contract ..."
-DEPLOY_OUTPUT_VERIFIER_2=$(forge create --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" src/PDPVerifier.sol:PDPVerifier)
+DEPLOY_OUTPUT_VERIFIER_2=$(forge create --nonce $NONCE --broadcast --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" src/PDPVerifier.sol:PDPVerifier)
+NONCE=$(expr $NONCE + "1")
 PDP_VERIFIER_ADDRESS_2=$(echo "$DEPLOY_OUTPUT_VERIFIER_2" | grep "Deployed to" | awk '{print $3}')
 echo "PDPVerifier deployed at: $PDP_VERIFIER_ADDRESS_2"
 echo
@@ -124,7 +125,8 @@ echo
 echo
 echo "Upgrading proxy to new implementation..."
 
-cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "upgradeToAndCall(address,bytes)" "$PDP_VERIFIER_ADDRESS_2" "0x"
+cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key --nonce $NONCE--broadcast "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "upgradeToAndCall(address,bytes)" "$PDP_VERIFIER_ADDRESS_2" "0x"
+NONCE=$(expr $NONCE + "1")
 
 echo "✓ Upgrade transaction submitted"
 
