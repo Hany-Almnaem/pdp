@@ -112,7 +112,59 @@ echo "========================================"
 
 
 #####################################
-# 6. Transfer ownership            #
+# 6. Upgrade proxy                  #
+#####################################
+
+echo "Deploying a new PDPVerifier contract ..."
+DEPLOY_OUTPUT_VERIFIER_2=$(
+  forge create \
+    --rpc-url "$FIL_CALIBNET_RPC_URL" \
+    --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
+    --chain-id "$CHAIN_ID" \
+    --compiler-version "$COMPILER_VERSION" \
+    --json \
+    src/PDPVerifier.sol:PDPVerifier
+)
+PDP_VERIFIER_ADDRESS_2=$(echo "$DEPLOY_OUTPUT_VERIFIER_2" | grep "Deployed to" | awk '{print $3}')
+echo "PDPVerifier deployed at: $PDP_VERIFIER_ADDRESS_2"
+echo
+
+echo
+echo "Upgrading proxy to new implementation..."
+
+cast send \
+  --rpc-url "$FIL_CALIBNET_RPC_URL" \
+  --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
+  --chain-id "$CHAIN_ID" \
+  "$PROXY_ADDRESS" \
+  "upgradeToAndCall(address,bytes)" \
+  "$PDP_VERIFIER_ADDRESS_2" \
+  "0x"
+
+echo "✓ Upgrade transaction submitted"
+
+# Verify the upgrade
+echo "Verifying new implementation..."
+sleep 35
+NEW_IMPLEMENTATION_ADDRESS=$(
+  cast storage \
+    --rpc-url "$FIL_CALIBNET_RPC_URL" \
+    "$PROXY_ADDRESS" \
+    "$IMPLEMENTATION_SLOT"
+)
+
+if [ "${NEW_IMPLEMENTATION_ADDRESS,,}" != "${PDP_VERIFIER_ADDRESS_2,,}" ]; then
+    echo "failed to upgrade implementation"
+    echo "Expected new implementation to be: ${PDP_VERIFIER_ADDRESS_2}"
+    echo "Got: ${NEW_IMPLEMENTATION_ADDRESS}"
+    exit 1
+fi
+
+echo "✓ Proxy upgraded successfully to ${PDP_VERIFIER_ADDRESS_2}"
+echo
+
+#####################################
+# 7. Transfer ownership            #
 #####################################
 echo
 echo "Transferring ownership to new owner..."
