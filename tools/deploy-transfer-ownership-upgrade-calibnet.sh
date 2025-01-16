@@ -125,7 +125,7 @@ echo
 echo
 echo "Upgrading proxy to new implementation..."
 
-cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key --nonce $NONCE--broadcast "$FIL_CALIBNET_PRIVATE_KEY" --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "upgradeToAndCall(address,bytes)" "$PDP_VERIFIER_ADDRESS_2" "0x"
+cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --nonce $NONCE --broadcast --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "upgradeToAndCall(address,bytes)" "$PDP_VERIFIER_ADDRESS_2" "0x"
 NONCE=$(expr $NONCE + "1")
 
 echo "✓ Upgrade transaction submitted"
