@@ -93,6 +93,7 @@ echo
 IMPLEMENTATION_SLOT="0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
 
 echo "Checking proxy's implementation address from storage slot $IMPLEMENTATION_SLOT ..."
+sleep 35
 IMPLEMENTATION_ADDRESS=$(cast storage --rpc-url "$FIL_CALIBNET_RPC_URL" "$PROXY_ADDRESS" "$IMPLEMENTATION_SLOT")
 
 echo "Implementation address in Proxy: $IMPLEMENTATION_ADDRESS"
@@ -116,14 +117,7 @@ echo "========================================"
 echo
 echo "Transferring ownership to new owner..."
 
-cast send \
-  --rpc-url "$FIL_CALIBNET_RPC_URL" \
-  --private-key "$FIL_CALIBNET_PRIVATE_KEY" \
-  --nonce $NONCE
-  --chain-id "$CHAIN_ID" \
-  "$PROXY_ADDRESS" \
-  "transferOwnership(address)" \
-  "$NEW_OWNER"
+cast send --rpc-url "$FIL_CALIBNET_RPC_URL" --private-key "$FIL_CALIBNET_PRIVATE_KEY" --nonce $NONCE --chain-id "$CHAIN_ID" "$PROXY_ADDRESS" "transferOwnership(address)" "$NEW_OWNER"
 NONCE=$(expr $NONCE + "1")
 
 echo "✓ Ownership transfer transaction submitted"
