@@ -93,12 +93,8 @@ echo
 IMPLEMENTATION_SLOT="0x360894A13BA1A3210667C828492DB98DCA3E2076CC3735A920A3CA505D382BBC"
 
 echo "Checking proxy's implementation address from storage slot $IMPLEMENTATION_SLOT ..."
-IMPLEMENTATION_ADDRESS=$(
-  cast storage \
-    --rpc-url "$FIL_CALIBNET_RPC_URL" \
-    "$PROXY_ADDRESS" \
-    "$IMPLEMENTATION_SLOT"
-)
+IMPLEMENTATION_ADDRESS=$(cast storage --rpc-url "$FIL_CALIBNET_RPC_URL" "$PROXY_ADDRESS" "$IMPLEMENTATION_SLOT")
+
 echo "Implementation address in Proxy: $IMPLEMENTATION_ADDRESS"
 echo
 
