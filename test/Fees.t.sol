@@ -22,6 +22,7 @@ contract PDPFeesTest is Test {
 
     function testProofFeeWithGasFeeBoundZeroGasFee() public {
         vm.expectRevert("failed to validate: estimated gas fee must be greater than 0");
+        vm.fee(1000);
         PDPFees.proofFeeWithGasFeeBound(0, 5, 0, 1e18, epochs_per_day);
     }
 
@@ -35,7 +36,7 @@ contract PDPFeesTest is Test {
         PDPFees.proofFeeWithGasFeeBound(1, 5, 0, 0, epochs_per_day);
     }
 
-    function testProofFeeWithGasFeeBoundHighGasFee() public pure {
+    function testProofFeeWithGasFeeBoundHighGasFee() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e18;
@@ -51,7 +52,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, 0, "Fee should be 0 when gas fee is high");
     }
 
-    function testProofFeeWithGasFeeBoundMediumGasFee() public pure {
+    function testProofFeeWithGasFeeBoundMediumGasFee() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e18;
@@ -70,7 +71,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, expectedFee, "Fee should be partially discounted");
     }
 
-    function testProofFeeWithGasFeeBoundLowGasFee() public pure {
+    function testProofFeeWithGasFeeBoundLowGasFee() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e18;
@@ -88,7 +89,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, expectedFee, "Fee should be full proof fee when gas fee is low");
     }
 
-    function testProofFeeWithGasFeeBoundNegativeExponent() public pure {
+    function testProofFeeWithGasFeeBoundNegativeExponent() public view {
         uint64 filUsdPrice = 5000;
         int32 filUsdPriceExpo = -3;
         uint256 rawSize = 1e18;
@@ -98,7 +99,7 @@ contract PDPFeesTest is Test {
         assertTrue(fee > 0, "Fee should be positive with negative exponent");
     }
 
-    function testProofFeeWithGasFeeBoundLargeRawSize() public pure {
+    function testProofFeeWithGasFeeBoundLargeRawSize() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e30;
@@ -108,7 +109,7 @@ contract PDPFeesTest is Test {
         assertTrue(fee > 0, "Fee should be positive for large raw size");
     }
 
-    function testProofFeeWithGasFeeBoundSmallRawSize() public pure {
+    function testProofFeeWithGasFeeBoundSmallRawSize() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1;
@@ -125,7 +126,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, expectedFee, "Fee should be full proof fee when gas fee is low");
     }
 
-    function testProofFeeWithGasFeeBoundHalfDollarFil() public pure {
+    function testProofFeeWithGasFeeBoundHalfDollarFil() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = -1; // 0.5 USD per FIL
         uint256 rawSize = 1e18;
@@ -144,7 +145,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, PDPFees.SYBIL_FEE, "Sybil fee should match the constant");
     }
 
-    function testProofFeeWithGasFeeBoundAtLeftBoundary() public pure {
+    function testProofFeeWithGasFeeBoundAtLeftBoundary() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e18;
@@ -161,7 +162,7 @@ contract PDPFeesTest is Test {
         assertEq(fee, expectedFee, "Fee should be full proof fee at left boundary");
     }
 
-    function testProofFeeWithGasFeeBoundNearRightBoundary() public pure {
+    function testProofFeeWithGasFeeBoundNearRightBoundary() public view {
         uint64 filUsdPrice = 5;
         int32 filUsdPriceExpo = 0;
         uint256 rawSize = 1e18;

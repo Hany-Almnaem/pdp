@@ -32,8 +32,8 @@ library PDPFees {
         int32 filUsdPriceExpo,
         uint256 rawSize,
         uint256 nProofEpochs
-    ) internal pure returns (uint256) {
-        require(estimatedGasFee > 0, "failed to validate: estimated gas fee must be greater than 0");
+    ) internal view returns (uint256) {        
+        require(estimatedGasFee > 0 || block.basefee == 0, "failed to validate: estimated gas fee must be greater than 0");
         require(filUsdPrice > 0, "failed to validate: AttoFIL price must be greater than 0");
         require(rawSize > 0, "failed to validate: raw size must be greater than 0");
 
