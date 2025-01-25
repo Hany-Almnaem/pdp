@@ -428,9 +428,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         proofSetLastProvenEpoch[setId] = block.number;
     }
 
-    function calculateProofFee(uint256 setId, uint256 gasUsed) public view returns (uint256) {
+    function calculateProofFee(uint256 setId, uint256 estimatedGasFee) public view returns (uint256) {
         uint256 rawSize = 32 * challengeRange[setId];
-        uint256 estimatedGasFee = gasUsed * block.basefee;
         (uint64 filUsdPrice, int32 filUsdPriceExpo) = getFILUSDPrice();
 
         return PDPFees.proofFeeWithGasFeeBound(
@@ -443,7 +442,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function calculateAndBurnProofFee(uint256 setId, uint256 gasUsed) internal {
-        uint256 proofFee = calculateProofFee(setId, gasUsed);
+        uint256 estimatedGasFee = gasUsed * block.basefee;
+        uint256 proofFee = calculateProofFee(setId, estimatedGasFee);
         burnFee(proofFee);
         if (msg.value > proofFee) {
             // Return the overpayment
