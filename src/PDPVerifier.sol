@@ -37,12 +37,19 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     uint256 public constant NO_CHALLENGE_SCHEDULED = 0;
 
     // Events
-    event ProofSetCreated(uint256 indexed setId);
+    event ProofSetCreated(uint256 indexed setId, address indexed owner);
+    event ProofSetOwnerChanged(uint256 indexed setId, address indexed oldOwner, address indexed newOwner);
     event ProofSetDeleted(uint256 indexed setId, uint256 deletedLeafCount);
-    event RootsAdded(uint256 indexed firstAdded);
-    event RootsRemoved(uint256[] indexed rootIds);
-    event ProofFeePaid(uint256 indexed setId, uint256 fee, uint64 price, int32 expo);
     event ProofSetEmpty(uint256 indexed setId);
+
+    event RootsAdded(uint256 indexed setId, uint256[] rootIds);
+    event RootsRemoved(uint256 indexed setId, uint256[] rootIds);
+   
+    event ProofFeePaid(uint256 indexed setId, uint256 fee, uint64 price, int32 expo);
+
+
+    event PossessionProven(uint256 indexed setId, RootIdAndOffset[] challenges);
+    event NextProvingPeriod(uint256 indexed setId, uint256 challengeEpoch, uint256 leafCount);
 
     // Types
     // State fields
@@ -249,8 +256,10 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function claimProofSetOwnership(uint256 setId) public {
         require(proofSetLive(setId), "Proof set not live");
         require(proofSetProposedOwner[setId] == msg.sender, "Only the proposed owner can claim ownership");
+        address oldOwner = proofSetOwner[setId];
         proofSetOwner[setId] = msg.sender;
         delete proofSetProposedOwner[setId];
+        emit ProofSetOwnerChanged(setId, oldOwner, msg.sender);
     }
 
     // A proof set is created empty, with no roots. Creation yields a proof set ID
@@ -276,7 +285,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (listenerAddr != address(0)) {
             PDPListener(listenerAddr).proofSetCreated(setId, msg.sender, extraData);
         }
-        emit ProofSetCreated(setId);
+        emit ProofSetCreated(setId, msg.sender);
         return setId;
     }
 
@@ -316,16 +325,19 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(rootData.length > 0, "Must add at least one root");
         require(proofSetOwner[setId] == msg.sender, "Only the owner can add roots");
         uint256 firstAdded = nextRootId[setId];
+        uint256[] memory rootIds = new uint256[](rootData.length);
+
 
         for (uint256 i = 0; i < rootData.length; i++) {
             addOneRoot(setId, i, rootData[i].root, rootData[i].rawSize);
+            rootIds[i] = firstAdded + i;
         }
+        emit RootsAdded(setId, rootIds);
 
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
             PDPListener(listenerAddr).rootsAdded(setId, firstAdded, rootData, extraData);
         }
-        emit RootsAdded(firstAdded);
 
         return firstAdded;
     }
@@ -387,6 +399,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(block.number >= challengeEpoch, "premature proof");
         require(proofs.length > 0, "empty proof");
         require(challengeEpoch != NO_CHALLENGE_SCHEDULED, "no challenge scheduled");
+        RootIdAndOffset[] memory challenges = new RootIdAndOffset[](proofs.length);
         
         uint256 seed = drawChallengeSeed(setId);
         uint256 leafCount = challengeRange[setId];
@@ -407,12 +420,13 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
 
             // Find the root that has this leaf, and the offset of the leaf within that root.
-            RootIdAndOffset memory root = findOneRootId(setId, challengeIdx, sumTreeTop);
-            bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, root.rootId));
-            bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, root.offset);
+            challenges[i] = findOneRootId(setId, challengeIdx, sumTreeTop);
+            bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, challenges[i].rootId));
+            bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset);
             require(ok, "proof did not verify");
         }
 
+     
         // Note: We don't want to include gas spent on the listener call in the fee calculation
         // to only account for proof verification fees and avoid gamability by getting the listener
         // to do extraneous work just to inflate the gas fee.
@@ -426,6 +440,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             PDPListener(listenerAddr).possessionProven(setId, proofSetLeafCount[setId], seed, proofs.length);
         }
         proofSetLastProvenEpoch[setId] = block.number;
+        emit PossessionProven(setId, challenges);
     }
 
     function calculateProofFee(uint256 setId, uint256 estimatedGasFee) public view returns (uint256) {
@@ -518,6 +533,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
 
         removeRoots(setId, removalsToProcess);
+        emit RootsRemoved(setId, removalsToProcess);
+        
         // Bring added roots into proving set
         challengeRange[setId] = proofSetLeafCount[setId];
         if (challengeEpoch < block.number + challengeFinality) {
@@ -537,6 +554,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         if (listenerAddr != address(0)) {
             PDPListener(listenerAddr).nextProvingPeriod(setId, nextChallengeEpoch[setId], proofSetLeafCount[setId], extraData);
         }
+        emit NextProvingPeriod(setId, challengeEpoch, proofSetLeafCount[setId]);
     }
 
     // removes roots from a proof set's state.
