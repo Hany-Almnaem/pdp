@@ -11,6 +11,10 @@ import "../lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgrad
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
+/// @title PDPListener
+/// @notice Interface for PDP Service applications managing data storage.
+/// @dev This interface exists to provide an extensible hook for applications to use the PDP verification contract
+/// to implement data storage applications.
 interface PDPListener {
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata extraData) external;
     function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata extraData) external;

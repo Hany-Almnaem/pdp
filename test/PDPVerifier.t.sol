@@ -706,7 +706,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         // the method implementation. 
         // To fix this method when changing code in provePossession run forge test -vvvv
         // to get a trace, and read out the fee value from the ProofFeePaid event.
-        uint256 correctFee = 117162;
+        uint256 correctFee = 84900;
         vm.expectRevert("Incorrect fee amount");
         pdpVerifier.provePossession{value: correctFee-1}(setId, proofs);
 

@@ -3,6 +3,8 @@ pragma solidity ^0.8.20;
 
 import {BitOps} from "./BitOps.sol";
 
+/// @title PDPFees
+/// @notice A library for calculating fees for the PDP.
 library PDPFees {
     uint256 constant ATTO_FIL = 1;
     uint256 constant FIL_TO_ATTO_FIL = 1e18 * ATTO_FIL;
@@ -25,7 +27,15 @@ library PDPFees {
     // Number of epochs per month (30 days * 2880 epochs per day)
     uint256 constant EPOCHS_PER_MONTH = 86400;
 
+    /// @notice Calculates the proof fee based on the gas fee and the raw size of the proof.
+    /// @param estimatedGasFee The estimated gas fee in AttoFIL.
+    /// @param filUsdPrice The price of FIL in USD.
+    /// @param filUsdPriceExpo The exponent of the price of FIL in USD.
+    /// @param rawSize The raw size of the proof in bytes.
+    /// @param nProofEpochs The number of proof epochs.
     /// @return proof fee in AttoFIL
+    /// @dev The proof fee is calculated based on the gas fee and the raw size of the proof
+    /// The fee is 1% of the projected reward and is reduced in the case gas cost of proving is too high.
     function proofFeeWithGasFeeBound(
         uint256 estimatedGasFee, // in AttoFIL
         uint64 filUsdPrice,
