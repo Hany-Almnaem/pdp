@@ -23,7 +23,6 @@ PDP currently enables a client-provider relationship where:
 ## Architecture
 The PDP system uses a singleton contract design where a single verifier contract manages multiple proof sets for many providers.
 
-
 ### System Components
 - **PDP Verifier**: The main contract that holds proof sets and verifies proofs
 - **PDP Listener**: Receives events about operations and handles fault logic
@@ -50,12 +49,29 @@ The PDP system follows these primary interaction patterns:
   - Manage proving periods
 - **State management**: Maintains proof set state including roots, sizes, and challenge epochs
 
+Search over proof set data to find a challenged leaf is the heart of the PDPVerifier.  To do this efficiently the verifier needs binary search.  To implement binary search efficiently with a mutating array of proofset roots we use a Fenwick/BIT tree variant.  See the design document: https://www.notion.so/filecoindev/PDP-Logical-Array-4405cda734964622993d3d58389942e8 
+
+Much of the design of the verifier comes down to preventing proving parties from grinding attacks: See grinding prevention design document: https://www.notion.so/filecoindev/PDP-Grinding-Mitigations-1a3dc41950c180de9403cc2bb5c14bbb
+
+The verifier charges for its services with a proof fee. See the working proof fee design document: https://www.notion.so/filecoindev/Pricing-mechanism-for-PDPverifier-12adc41950c180ea9608cb419c369ba4
+
+For historical context please see the original design document of what has become the verifier: https://docs.google.com/document/d/1VwU182XZb54d__FQqMIJ_Srpk5a65QlDv_ffktnhDN0/edit?tab=t.0#heading=h.jue9m7srjcr3
+
+
+
 ### PDP Listener
+The listener contract coordinates a concrete storage agreement between a storage client and provider using the PDPVerifier's proving service.
+
 - **Event handling**: Receives notifications about all operations
 - **Interface requirements**: Must implement methods to receive operation events
 - **Implementation details**: Handles fault logic and can fail operations
 
+See the design document: https://www.notion.so/filecoindev/PDP-Extensibility-The-Listener-Contract-1a3dc41950c1804b9a21c15bc0abc95f
+
 ### SimplePDPService
+
+This is the default instantiation of the PDPListener.
+
 - **Fault handling**: Reports faults when proving fails
 - **Proving period management**: Manages the timing of proof challenges
 - **Challenge window implementation**: Enforces time constraints for proof submission
@@ -74,7 +90,7 @@ size: u64, // Must be multiple of 32.
 }
 struct ProofSet {
 id: u64,
-// Delay in epochs between a successful proof and availability of
+// Protocol enforced delay in epochs between a successful proof and availability of
 // the next challenge.
 challengeDelay: u64,
 // ID to assign to the next root (a sequence number).
@@ -100,7 +116,7 @@ proof: bytes32[],
 ```
 
 ### Logical Array Implementation
-The PDP Logical Array is implemented using a variant of a Fenwick tree to efficiently manage the concatenated data from all roots in a proof set.
+The PDP Logical Array is implemented using a variant of a Fenwick tree to efficiently manage the concatenated data from all roots in a proof set.  See previously linked design document
 
 ## Workflows
 Detailed description of key workflows.
@@ -129,6 +145,7 @@ Detailed description of key workflows.
 ### Threat Model
 - Providers may attempt to cheat by not storing data
 - Attackers may try to bias randomness or grind proving sets
+- Data clients could try to force a fault to get out of paying honest providers for storage
 - Contract ownership could be compromised
 
 ### Proofset Independence and Ownership
@@ -153,11 +170,8 @@ Detailed description of key workflows.
 - Only proof set owners can modify their proof sets
 
 ### Randomness Handling
-- Challenge seed generation uses chain randomness
-- A new FEVM precompile is introduced for lookback drand randomness
-
-## Security Considerations
-Detailed security analysis.
+- Challenge seed generation uses filecoin L1 chain randomness from the drand beacon
+- A new FEVM precompile has recently been introduced allowed lookup of drand randomness for any epoch in the past.
 
 ## Performance Considerations
 
@@ -167,7 +181,7 @@ Detailed security analysis.
 
 ### Scalability
 - The system can handle multiple proof sets for many providers
-- The logical array implementation using a Fenwick tree variant improves efficiency
+- The logical array implements binary search using a Fenwick/BIT tree variant that makes efficiency possible for mutating proof sets.
 
 ## Future Enhancements
 
@@ -182,5 +196,7 @@ Detailed security analysis.
 ### Glossary
 - **Proof Set**: A container for Merkle roots representing data to be proven
 - **Merkle Proof**: A cryptographic proof of data inclusion in a Merkle tree
-- **Proving Period**: The time window during which proofs must be submitted
+- **Proving Period**: The time window between successive challenge windows
+- **Challenge Window**: The time window during which proofs must be submitted
 - **Challenge**: A random request to prove possession of specific data
+

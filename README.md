@@ -13,13 +13,18 @@
 This project contains the implementation of the PDP service contract, auxiliary contracts, and development tools for the Provable Data Possession protocol.
 
 ## Build
+```
 make build 
-
+```
 ## Test
+```
 make test
-
+```
 ## Deploy
-TODO
+To deploy on calibrationnet, run:
+```
+make deploy-calibrationnet
+```
 
 ## Design Documentation
 For comprehensive design details, see [DESIGN.md](DESIGN.md)
