@@ -49,6 +49,7 @@ contract BitOpsTest is Test {
         assertEq(result, 254, "CTZ of 2^254 should be 254");
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testCtzInputExceedsMaxInt256() public {
         // Setup
         uint256 maxInt256 = uint256(type(int256).max);

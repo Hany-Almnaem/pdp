@@ -11,6 +11,10 @@ import "../lib/openzeppelin-contracts-upgradeable/contracts/access/OwnableUpgrad
 import "@pythnetwork/pyth-sdk-solidity/IPyth.sol";
 import "@pythnetwork/pyth-sdk-solidity/PythStructs.sol";
 
+/// @title PDPListener
+/// @notice Interface for PDP Service applications managing data storage.
+/// @dev This interface exists to provide an extensible hook for applications to use the PDP verification contract
+/// to implement data storage applications.
 interface PDPListener {
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata extraData) external;
     function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata extraData) external;
@@ -35,6 +39,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // FIL/USD price feed query ID on the Pyth network
     bytes32 public constant FIL_USD_PRICE_FEED_ID = 0x150ac9b959aee0051e4091f0ef5216d941f590e1c5e7f91cf7635b5c11628c0e;
     uint256 public constant NO_CHALLENGE_SCHEDULED = 0;
+    uint256 public constant NO_PROVEN_EPOCH = 0;
+
 
     // Events
     event ProofSetCreated(uint256 indexed setId, address indexed owner);
@@ -79,9 +85,9 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     []ProofSet proofsets
 
     To implement this logical structure in the solidity data model we have
-    two arrays tracking the singleton fields and three two dimensional arrays
-    tracking the growing data of the proof set.  The first index is the proof set id
-    and the second index is the index of the data in the array.
+    arrays tracking the singleton fields and two dimensional arrays
+    tracking linear proof set data.  The first index is the proof set id
+    and the second index if any is the index of the data in the array.
 
     Invariant: rootCids.length == rootLeafCount.length == sumTreeCounts.length
     */
@@ -124,7 +130,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // proofset owner has exclusive permission to add and remove roots and delete the proof set
     mapping(uint256 => address) proofSetOwner;
     mapping(uint256 => address) proofSetProposedOwner;
-    uint256 constant NO_PROVEN_EPOCH = 0;
     mapping(uint256 => uint256) proofSetLastProvenEpoch;
 
     // Methods
@@ -408,13 +413,14 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
             // Note -- there is a slight deviation here from the uniform distribution.
             // Some leaves are challenged with probability p and some have probability p + deviation. 
-            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash
+            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash.
+            // Deviation grows with proofset leaf count.
             // Assuming a 1000EiB = 1 ZiB network size ~ 2^70 bytes of data or 2^65 leaves
             // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.            
             //   If modifying this code to use a hash function with smaller output size 
             //   this deviation will increase and caution is advised.
             // To remove this deviation we could use the standard solution of rejection sampling
-            //   This is slightly more costly at one more hash on average for maximally misaligned proofsets
+            //   This is complicated and slightly more costly at one more hash on average for maximally misaligned proofsets
             //   and comes at no practical benefit given how small the deviation is.
             bytes memory payload = abi.encodePacked(seed, setId, i);
             uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
