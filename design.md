@@ -25,18 +25,16 @@ The PDP system uses a singleton contract design where a single verifier contract
 
 ### System Components
 - **PDP Verifier**: The main contract that holds proof sets and verifies proofs
-- **PDP Listener**: Receives events about operations and handles fault logic
 - **SimplePDPService**: Manages proving periods and fault reporting
 - **Supporting Contracts**: Additional contracts for specific functionality
 
 ### Interaction Patterns
 The PDP system follows these primary interaction patterns:
 1. Clients and providers establish proof sets through the verifier contract
-2. Providers add Merkle roots to their proof sets
-3. The system issues challenges based on chain randomness
-4. Providers submit proofs for verification
-5. The listener contract receives events about all operations
-6. Faults are reported when proofs fail or are not submitted
+2. The system issues challenges based on chain randomness
+3. Providers submit merkleproofs for data possession verification
+4. The SimplePDPService contract (or in general the listener) receives events about all operations
+5. Faults are reported when proofs are not submitted
 
 ## Core Components
 
@@ -60,13 +58,11 @@ For historical context please see the original design document of what has becom
 
 
 ### PDP Listener
-The listener contract coordinates a concrete storage agreement between a storage client and provider using the PDPVerifier's proving service.
-
-- **Event handling**: Receives notifications about all operations
-- **Interface requirements**: Must implement methods to receive operation events
-- **Implementation details**: Handles fault logic and can fail operations
+The listener contract is a design pattern allowing for extensibile programmability of the PDP storage protocol.  Itcoordinates a concrete storage agreement between a storage client and provider using the PDPVerifier's proving service.
 
 See the design document: https://www.notion.so/filecoindev/PDP-Extensibility-The-Listener-Contract-1a3dc41950c1804b9a21c15bc0abc95f
+
+Included is a default instantiation -- the SimplePDPService.
 
 ### SimplePDPService
 
@@ -123,8 +119,8 @@ Detailed description of key workflows.
 
 ### Proof Set Creation
 1. A client and provider agree to set up a proof set
-2. They call the verifier contract to create a new proof set
-3. The proof set is initialized with owner permissions and challenge parameters
+2. The provider callsthe verifier contract to create a new proof set
+3. The proof set is initialized with owner permissions belonging to the provider and challenge parameters
 
 ### Data Verification
 1. The provider adds Merkle roots to the proof set
@@ -137,7 +133,7 @@ Detailed description of key workflows.
 ### Fault Handling
 1. If a provider fails to submit valid proofs within the proving period:
    - The provider must call nextProvingPeriod to acknowledge the fault
-   - The listener contract emits an event registering the fault
+   - The SimplePDPService contract emits an event registering the fault
    - The system updates the next challenge epoch
 
 ## Security Considerations
