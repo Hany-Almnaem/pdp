@@ -27,7 +27,7 @@ make deploy-calibrationnet
 ```
 
 ## Design Documentation
-For comprehensive design details, see [DESIGN.md](DESIGN.md)
+For comprehensive design details, see [DESIGN.md](design.md)
 
 ## Contributing
 Contributions are welcome! Please follow these contribution guidelines:
