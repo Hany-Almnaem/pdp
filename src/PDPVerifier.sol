@@ -413,7 +413,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
             // Note -- there is a slight deviation here from the uniform distribution.
             // Some leaves are challenged with probability p and some have probability p + deviation. 
-            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash
+            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash.
+            // Deviation grows with proofset leaf count.
             // Assuming a 1000EiB = 1 ZiB network size ~ 2^70 bytes of data or 2^65 leaves
             // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.            
             //   If modifying this code to use a hash function with smaller output size 

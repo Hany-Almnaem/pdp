@@ -20,17 +20,20 @@ contract PDPFeesTest is Test {
         return rewardPerPeriod;
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testProofFeeWithGasFeeBoundZeroGasFee() public {
         vm.expectRevert("failed to validate: estimated gas fee must be greater than 0");
         vm.fee(1000);
         PDPFees.proofFeeWithGasFeeBound(0, 5, 0, 1e18, epochs_per_day);
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testProofFeeWithGasFeeBoundZeroAttoFilUsdPrice() public {
         vm.expectRevert("failed to validate: AttoFIL price must be greater than 0");
         PDPFees.proofFeeWithGasFeeBound(1, 0, 0, 1e18, epochs_per_day);
     }
 
+    /// forge-config: default.allow_internal_expect_revert = true
     function testProofFeeWithGasFeeBoundZeroRawSize() public {
         vm.expectRevert("failed to validate: raw size must be greater than 0");
         PDPFees.proofFeeWithGasFeeBound(1, 5, 0, 0, epochs_per_day);

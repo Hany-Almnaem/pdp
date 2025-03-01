@@ -56,13 +56,13 @@ contract ERC1967ProxyTest is Test {
         assertEq(proxy.owner(), owner); // Owner is preserved
     }
 
-    function testFailUpgradeFromNonOwner() public {
+    function testUpgradeFromNonOwnerNoGood() public {
         PDPVerifier newImplementation = new PDPVerifier();
         
         vm.stopPrank();
         vm.startPrank(address(0xdead));
 
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert();
         proxy.upgradeToAndCall(address(newImplementation), "");
         assertEq(proxy.getChallengeFinality(), 150); // State is preserved
         assertEq(proxy.owner(), owner); // Owner is preserved
@@ -83,7 +83,7 @@ contract ERC1967ProxyTest is Test {
         assertEq(proxy.owner(), newOwner);
     }
 
-    function testFailTransferFromNonOwner() public {
+    function testTransferFromNonOwneNoGood() public {
         // Switch to non-owner account
         vm.stopPrank();
         vm.startPrank(address(0xdead));
@@ -91,7 +91,7 @@ contract ERC1967ProxyTest is Test {
         address newOwner = address(0x123);
 
         // Attempt transfer should fail
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert();
         proxy.transferOwnership(newOwner);
 
         // Verify owner unchanged
