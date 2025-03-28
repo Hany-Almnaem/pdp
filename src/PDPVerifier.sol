@@ -401,36 +401,41 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     function provePossession(uint256 setId, Proof[] calldata proofs) public payable {
         uint256 initialGas = gasleft();
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
-        uint256 challengeEpoch = nextChallengeEpoch[setId];
-        require(block.number >= challengeEpoch, "premature proof");
         require(proofs.length > 0, "empty proof");
-        require(challengeEpoch != NO_CHALLENGE_SCHEDULED, "no challenge scheduled");
+        {
+            uint256 challengeEpoch = nextChallengeEpoch[setId];
+            require(block.number >= challengeEpoch, "premature proof");
+            require(challengeEpoch != NO_CHALLENGE_SCHEDULED, "no challenge scheduled");
+        }
+
         RootIdAndOffset[] memory challenges = new RootIdAndOffset[](proofs.length);
         
         uint256 seed = drawChallengeSeed(setId);
-        uint256 leafCount = challengeRange[setId];
-        uint256 sumTreeTop = 256 - BitOps.clz(nextRootId[setId]);
-        for (uint64 i = 0; i < proofs.length; i++) {
-            // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
-            // Note -- there is a slight deviation here from the uniform distribution.
-            // Some leaves are challenged with probability p and some have probability p + deviation. 
-            // This deviation is bounded by leafCount / 2^256 given a 256 bit hash.
-            // Deviation grows with proofset leaf count.
-            // Assuming a 1000EiB = 1 ZiB network size ~ 2^70 bytes of data or 2^65 leaves
-            // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.            
-            //   If modifying this code to use a hash function with smaller output size 
-            //   this deviation will increase and caution is advised.
-            // To remove this deviation we could use the standard solution of rejection sampling
-            //   This is complicated and slightly more costly at one more hash on average for maximally misaligned proofsets
-            //   and comes at no practical benefit given how small the deviation is.
-            bytes memory payload = abi.encodePacked(seed, setId, i);
-            uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
+        {
+            uint256 leafCount = challengeRange[setId];
+            uint256 sumTreeTop = 256 - BitOps.clz(nextRootId[setId]);
+            for (uint64 i = 0; i < proofs.length; i++) {
+                // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
+                // Note -- there is a slight deviation here from the uniform distribution.
+                // Some leaves are challenged with probability p and some have probability p + deviation.
+                // This deviation is bounded by leafCount / 2^256 given a 256 bit hash.
+                // Deviation grows with proofset leaf count.
+                // Assuming a 1000EiB = 1 ZiB network size ~ 2^70 bytes of data or 2^65 leaves
+                // This deviation is bounded by 2^65 / 2^256 = 2^-191 which is negligible.
+                //   If modifying this code to use a hash function with smaller output size
+                //   this deviation will increase and caution is advised.
+                // To remove this deviation we could use the standard solution of rejection sampling
+                //   This is complicated and slightly more costly at one more hash on average for maximally misaligned proofsets
+                //   and comes at no practical benefit given how small the deviation is.
+                bytes memory payload = abi.encodePacked(seed, setId, i);
+                uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
 
-            // Find the root that has this leaf, and the offset of the leaf within that root.
-            challenges[i] = findOneRootId(setId, challengeIdx, sumTreeTop);
-            bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, challenges[i].rootId));
-            bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset);
-            require(ok, "proof did not verify");
+                // Find the root that has this leaf, and the offset of the leaf within that root.
+                challenges[i] = findOneRootId(setId, challengeIdx, sumTreeTop);
+                bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, challenges[i].rootId));
+                bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset);
+                require(ok, "proof did not verify");
+            }
         }
 
      
@@ -442,10 +447,13 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 gasUsed = (initialGas - gasleft()) + ((calculateCallDataSize(proofs) + 32) * 1300);
         uint256 refund = calculateAndBurnProofFee(setId, gasUsed);
 
-        address listenerAddr = proofSetListener[setId];
-        if (listenerAddr != address(0)) {
-            PDPListener(listenerAddr).possessionProven(setId, proofSetLeafCount[setId], seed, proofs.length);
+        {
+            address listenerAddr = proofSetListener[setId];
+            if (listenerAddr != address(0)) {
+                PDPListener(listenerAddr).possessionProven(setId, proofSetLeafCount[setId], seed, proofs.length);
+            }
         }
+
         proofSetLastProvenEpoch[setId] = block.number;
         emit PossessionProven(setId, challenges);
 
