@@ -275,10 +275,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         uint256 sybilFee = PDPFees.sybilFee();
         require(msg.value >= sybilFee, "sybil fee not met");
         burnFee(sybilFee);
-        if (msg.value > sybilFee) {
-            // Return the overpayment
-            payable(msg.sender).transfer(msg.value - sybilFee);
-        }
 
         uint256 setId = nextProofSetId++;
         proofSetLeafCount[setId] = 0;
@@ -291,6 +287,11 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             PDPListener(listenerAddr).proofSetCreated(setId, msg.sender, extraData);
         }
         emit ProofSetCreated(setId, msg.sender);
+
+        // Return the at the end to avoid any possible re-entrency issues.
+        if (msg.value > sybilFee) {
+            payable(msg.sender).transfer(msg.value - sybilFee);
+        }
         return setId;
     }
 
@@ -397,7 +398,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // proof set Merkle roots at some epoch. The challenge seed is determined
     // by the epoch of the previous proof of possession.
     // Note that this method is not restricted to the proof set owner.
-    function provePossession(uint256 setId, Proof[] calldata proofs) public payable{
+    function provePossession(uint256 setId, Proof[] calldata proofs) public payable {
         uint256 initialGas = gasleft();
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
         uint256 challengeEpoch = nextChallengeEpoch[setId];
@@ -439,7 +440,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         //
         // (add 32 bytes to the `callDataSize` to also account for the `setId` calldata param)
         uint256 gasUsed = (initialGas - gasleft()) + ((calculateCallDataSize(proofs) + 32) * 1300);
-        calculateAndBurnProofFee(setId, gasUsed);
+        uint256 refund = calculateAndBurnProofFee(setId, gasUsed);
 
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
@@ -447,6 +448,12 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
         proofSetLastProvenEpoch[setId] = block.number;
         emit PossessionProven(setId, challenges);
+
+        // Return the overpayment after doing everything else to avoid re-entrancy issues (all state has been updated by this point). If this
+        // call fails, the entire operation reverts.
+        if (refund > 0) {
+            payable(msg.sender).transfer(refund);
+        }
     }
 
     function calculateProofFee(uint256 setId, uint256 estimatedGasFee) public view returns (uint256) {
@@ -462,7 +469,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         );
     }
 
-    function calculateAndBurnProofFee(uint256 setId, uint256 gasUsed) internal {
+    function calculateAndBurnProofFee(uint256 setId, uint256 gasUsed) internal returns (uint256 refund) {
         uint256 estimatedGasFee = gasUsed * block.basefee;
         uint256 rawSize = 32 * challengeRange[setId];
         (uint64 filUsdPrice, int32 filUsdPriceExpo) = getFILUSDPrice();
@@ -475,11 +482,9 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             block.number - proofSetLastProvenEpoch[setId]
         );        
         burnFee(proofFee);
-        if (msg.value > proofFee) {
-            // Return the overpayment
-            payable(msg.sender).transfer(msg.value - proofFee);
-        }
         emit ProofFeePaid(setId, proofFee, filUsdPrice, filUsdPriceExpo);
+
+        return msg.value - proofFee; // burnFee asserts that proofFee <= msg.value;
     }
 
     function calculateCallDataSize(Proof[] calldata proofs) internal pure returns (uint256) {
