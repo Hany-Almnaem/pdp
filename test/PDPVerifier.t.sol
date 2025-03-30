@@ -395,6 +395,26 @@ contract PDPVerifierProofSetMutateTest is Test {
         bytes memory emptyCidData = new bytes(0);
         assertEq(pdpVerifier.getRootCid(setId, 0).data, emptyCidData);
         assertEq(pdpVerifier.getRootLeafCount(setId, 0), 0);
+
+    }
+
+    function testCannotScheduleRemovalOnNonLiveProofSet() public {
+        // Create a proof set
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        
+        // Add a root to the proof set
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        pdpVerifier.addRoots(setId, roots, empty);
+        
+        // Delete the proof set
+        pdpVerifier.deleteProofSet(setId, empty);
+        
+        // Attempt to schedule removal of the root, which should fail
+        uint256[] memory rootIds = new uint256[](1);
+        rootIds[0] = 0;
+        vm.expectRevert("Proof set not live");
+        pdpVerifier.scheduleRemovals(setId, rootIds, empty);
     }
 
     function testRemoveRootBatch() public {
@@ -547,7 +567,35 @@ contract PDPVerifierProofSetMutateTest is Test {
         vm.expectRevert("only the owner can move to next proving period");
         pdpVerifier.nextProvingPeriod(setId, block.number + 10, empty);
     }
-    
+
+    function testNextProvingPeriodChallengeEpochTooSoon() public {
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        // Add a root to the proof set (otherwise nextProvingPeriod fails waiting for leaves)
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        pdpVerifier.addRoots(setId, roots, empty);
+        
+        // Current block number
+        uint256 currentBlock = block.number;
+        
+        // Try to call nextProvingPeriod with a challenge epoch that is not at least
+        // challengeFinality epochs in the future
+        uint256 tooSoonEpoch = currentBlock + challengeFinalityDelay - 1;
+        
+        // Expect revert with the specific error message
+        vm.expectRevert("challenge epoch must be at least challengeFinality epochs in the future");
+        pdpVerifier.nextProvingPeriod(setId, tooSoonEpoch, "");
+
+        // Set challenge epoch to exactly challengeFinality epochs in the future
+        // This should work (not revert)
+        uint256 validEpoch = currentBlock + challengeFinalityDelay;
+        
+        // This call should succeed
+        pdpVerifier.nextProvingPeriod(setId, validEpoch, "");
+        
+        // Verify the challenge epoch was set correctly
+        assertEq(pdpVerifier.getNextChallengeEpoch(setId), validEpoch);
+    }
         
     function testNextProvingPeriodWithNoData() public {
         // Get the NO_CHALLENGE_SCHEDULED constant value for clarity

@@ -48,39 +48,6 @@ library MerkleVerify {
     }
 
     /**
-     * Returns true if a `leaf` can be proved to be a part of a Merkle tree
-     * defined by `root` at `position`. For this, a `proof` must be provided, containing
-     * sibling hashes on the branch from the leaf to the root of the tree.
-     *
-     * This version handles proofs in calldata.
-     */
-    function verifyCalldata(bytes32[] calldata proof, bytes32 root, bytes32 leaf, uint256 position) internal view returns (bool) {
-        return processProofCalldata(proof, leaf, position) == root;
-    }
-
-    /**
-     * Returns the rebuilt hash obtained by traversing a Merkle tree up
-     * from `leaf` at `position` using `proof`. A `proof` is valid if and only if the rebuilt
-     * hash matches the root of the tree.
-     *
-     * This version handles proofs in calldata.
-     */
-    function processProofCalldata(bytes32[] calldata proof, bytes32 leaf, uint256 position) internal view returns (bytes32) {
-        bytes32 computedHash = leaf;
-        for (uint256 i = 0; i < proof.length; i++) {
-            // If position is even, the leaf/node is on the left and sibling is on the right.
-            bytes32 sibling = proof[i];
-            if (position % 2 == 0) {
-                computedHash = Hashes.orderedHash(computedHash, sibling);
-            } else {
-                computedHash = Hashes.orderedHash(sibling, computedHash);
-            }
-            position /= 2;
-        }
-        return computedHash;
-    }
-
-    /**
      * Returns the root of a Merkle tree of all zero leaves and specified height. 
      * A height of zero returns zero (the leaf value).
      * A height of 1 returns the hash of two zero leaves.
