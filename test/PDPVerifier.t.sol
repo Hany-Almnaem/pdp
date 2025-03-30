@@ -793,7 +793,6 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         emit PDPVerifier.PossessionProven(setId, challenges);
         pdpVerifier.provePossession{value: 1e18}(setId, proofs);
 
-       
 
         // Verify the next challenge is in a subsequent epoch.
         // Next challenge unchanged by prove
@@ -919,6 +918,27 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         vm.expectRevert();
         pdpVerifier.provePossession{value: 1e18}(setId, proofs);
     }
+
+    function testProvePossessionFailsWithNoScheduledChallenge() public {
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        pdpVerifier.addRoots(setId, roots, empty);
+
+        // Don't sample challenge (i.e. call nextProvingPeriod)
+
+        // Create a dummy proof
+        PDPVerifier.Proof[] memory proofs = new PDPVerifier.Proof[](1);
+        proofs[0].leaf = bytes32(0);
+        proofs[0].proof = new bytes32[](1);
+        proofs[0].proof[0] = bytes32(0);
+        
+        // Try to prove possession without scheduling a challenge
+        // This should fail because nextChallengeEpoch is still NO_CHALLENGE_SCHEDULED (0)
+        vm.expectRevert("no challenge scheduled");
+        pdpVerifier.provePossession{value: 1 ether}(setId, proofs);
+    }
+    
 
     function testEmptyProofRejected() public {
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
