@@ -46,6 +46,7 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
         assertEq(pdpVerifier.getRootCid(setId, 0).data, zeroRoot.data, "Uninitialized root should be empty");
         assertEq(pdpVerifier.getRootLeafCount(setId, 0), 0, "Uninitialized root should have zero leaves");
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), 0, "Proof set challenge epoch should be zero");
+        assertEq(pdpVerifier.getProofSetListener(setId), address(listener), "Proof set listener should be the constructor listener");
     }
 
     function testDeleteProofSet() public {
@@ -98,6 +99,8 @@ contract PDPVerifierProofSetCreateDeleteTest is Test {
         pdpVerifier.getProofSetOwner(setId);
         vm.expectRevert("Proof set not live");
         pdpVerifier.getProofSetLeafCount(setId);
+        vm.expectRevert("Proof set not live");
+        pdpVerifier.getProofSetListener(setId);
         vm.expectRevert("Proof set not live");
         pdpVerifier.getRootCid(setId, 0);
         vm.expectRevert("Proof set not live");
@@ -467,6 +470,85 @@ contract PDPVerifierProofSetMutateTest is Test {
         assertEq(false, pdpVerifier.rootLive(setId, 1));
     }
 
+    function testExtraDataMaxSizeLimit() public {
+        // Generate extra data that exceeds the max size (2KB)
+        bytes memory tooLargeExtraData = new bytes(2049); // 2KB + 1 byte
+        for (uint i = 0; i < tooLargeExtraData.length; i++) {
+            tooLargeExtraData[i] = 0x41; // ASCII 'A'
+        }
+    
+        // First test createProofSet with too large extra data
+        vm.expectRevert("Extra data too large");
+        pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), tooLargeExtraData);
+
+        // Now create proofset 
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        
+        // Test addRoots with too large extra data
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        vm.expectRevert("Extra data too large");
+        pdpVerifier.addRoots(setId, roots, tooLargeExtraData);
+
+        // Now actually add root id 0
+        pdpVerifier.addRoots(setId, roots, empty);
+        
+        // Test scheduleRemovals with too large extra data
+        uint256[] memory rootIds = new uint256[](1);
+        rootIds[0] = 0;
+        vm.expectRevert("Extra data too large");
+        pdpVerifier.scheduleRemovals(setId, rootIds, tooLargeExtraData);
+        
+        // Test nextProvingPeriod with too large extra data
+        vm.expectRevert("Extra data too large");
+        pdpVerifier.nextProvingPeriod(setId, block.number + 10, tooLargeExtraData);
+        
+        // Test deleteProofSet with too large extra data
+        vm.expectRevert("Extra data too large");
+        pdpVerifier.deleteProofSet(setId, tooLargeExtraData);
+    }
+        
+    function testOnlyOwnerCanModifyProofSet() public {
+        // Setup a root we can add
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
+        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 64);
+        
+        // First add a root as the owner so we can test removal
+        pdpVerifier.addRoots(setId, roots, empty);
+        
+        address nonOwner = address(0xC0FFEE);
+        // Try to add roots as non-owner
+        vm.prank(nonOwner);
+        vm.expectRevert("Only the owner can add roots");
+        pdpVerifier.addRoots(setId, roots, empty);
+        
+        // Try to delete proof set as non-owner
+        vm.prank(nonOwner);
+        vm.expectRevert("Only the owner can delete proof sets");
+        pdpVerifier.deleteProofSet(setId, empty);
+        
+        // Try to schedule removals as non-owner
+        uint256[] memory rootIds = new uint256[](1);
+        rootIds[0] = 0;
+        vm.prank(nonOwner);
+        vm.expectRevert("Only the owner can schedule removal of roots");
+        pdpVerifier.scheduleRemovals(setId, rootIds, empty);
+
+        // Try to provePossession as non-owner
+        vm.prank(nonOwner);
+        PDPVerifier.Proof[] memory proofs = new PDPVerifier.Proof[](1);
+        proofs[0] = PDPVerifier.Proof(bytes32(abi.encodePacked("test")), new bytes32[](0));
+        vm.expectRevert("Only the owner can prove possession");
+        pdpVerifier.provePossession(setId, proofs);
+        
+        // Try to call nextProvingPeriod as non-owner
+        vm.prank(nonOwner);
+        vm.expectRevert("only the owner can move to next proving period");
+        pdpVerifier.nextProvingPeriod(setId, block.number + 10, empty);
+    }
+    
+        
     function testNextProvingPeriodWithNoData() public {
         // Get the NO_CHALLENGE_SCHEDULED constant value for clarity
         uint256 NO_CHALLENGE = pdpVerifier.NO_CHALLENGE_SCHEDULED();
