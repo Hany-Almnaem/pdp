@@ -327,15 +327,16 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // These roots won't be challenged until the next proving period is 
     // started by calling nextProvingPeriod.
     function addRoots(uint256 setId, RootData[] calldata rootData, bytes calldata extraData) public returns (uint256) {
+        uint256 nRoots = rootData.length;
         require(extraData.length <= EXTRA_DATA_MAX_SIZE, "Extra data too large");
         require(proofSetLive(setId), "Proof set not live");
-        require(rootData.length > 0, "Must add at least one root");
+        require(nRoots > 0, "Must add at least one root");
         require(proofSetOwner[setId] == msg.sender, "Only the owner can add roots");
         uint256 firstAdded = nextRootId[setId];
         uint256[] memory rootIds = new uint256[](rootData.length);
 
 
-        for (uint256 i = 0; i < rootData.length; i++) {
+        for (uint256 i = 0; i < nRoots; i++) {
             addOneRoot(setId, i, rootData[i].root, rootData[i].rawSize);
             rootIds[i] = firstAdded + i;
         }
@@ -401,8 +402,9 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Note that this method is not restricted to the proof set owner.
     function provePossession(uint256 setId, Proof[] calldata proofs) public payable {
         uint256 initialGas = gasleft();
+        uint256 nProofs = proofs.length;
         require(msg.sender == proofSetOwner[setId], "Only the owner can prove possession");
-        require(proofs.length > 0, "empty proof");
+        require(nProofs > 0, "empty proof");
         {
             uint256 challengeEpoch = nextChallengeEpoch[setId];
             require(block.number >= challengeEpoch, "premature proof");
@@ -415,7 +417,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         {
             uint256 leafCount = challengeRange[setId];
             uint256 sumTreeTop = 256 - BitOps.clz(nextRootId[setId]);
-            for (uint64 i = 0; i < proofs.length; i++) {
+            for (uint64 i = 0; i < nProofs; i++) {
                 // Hash (SHA3) the seed,  proof set id, and proof index to create challenge.
                 // Note -- there is a slight deviation here from the uniform distribution.
                 // Some leaves are challenged with probability p and some have probability p + deviation.
@@ -546,9 +548,10 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Take removed roots out of proving set
         uint256[] storage removals = scheduledRemovals[setId];
-        uint256[] memory removalsToProcess = new uint256[](removals.length);
+        uint256 nRemovals = removals.length;
+        uint256[] memory removalsToProcess = new uint256[](nRemovals);
 
-        for (uint256 i = 0; i < removalsToProcess.length; i++) {
+        for (uint256 i = 0; i < nRemovals; i++) {
             removalsToProcess[i] = removals[removals.length - 1];
             removals.pop();
         }
