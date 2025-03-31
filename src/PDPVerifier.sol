@@ -290,7 +290,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
         // Return the at the end to avoid any possible re-entrency issues.
         if (msg.value > sybilFee) {
-            payable(msg.sender).transfer(msg.value - sybilFee);
+            (bool success, ) = msg.sender.call{value: msg.value - sybilFee}("");
+            require(success, "Transfer failed.");
         }
         return setId;
     }
@@ -460,7 +461,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Return the overpayment after doing everything else to avoid re-entrancy issues (all state has been updated by this point). If this
         // call fails, the entire operation reverts.
         if (refund > 0) {
-            payable(msg.sender).transfer(refund);
+            (bool success, ) = msg.sender.call{value: refund}("");
+            require(success, "Transfer failed.");
         }
     }
 
