@@ -683,6 +683,10 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         price.price = 1;
         vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
 
+        address sender = makeAddr("sender");
+        vm.deal(sender, 1000 ether);
+        vm.startPrank(sender);
+
         uint leafCount = 10;
         (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
 
@@ -699,20 +703,24 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         // Mock block.number to 2881
         vm.roll(2881);
 
-        // Test 1: Sending less than the required fee
+        // Determine the correct fee.
+        uint256 correctFee;
+        {
+            uint256 snapshotId = vm.snapshotState();
+            uint256 balanceBefore = sender.balance;
+            pdpVerifier.provePossession{value: sender.balance}(setId, proofs);
+            uint256 balanceAfter = sender.balance;
+            correctFee = balanceBefore - balanceAfter;
+            vm.revertToStateAndDelete(snapshotId);
+        }
 
-        // This is not the cleanest but recording a previous measurement of the correct fee
-        // is our only option as the proof fee calculation depends on gas which depends on 
-        // the method implementation. 
-        // To fix this method when changing code in provePossession run forge test -vvvv
-        // to get a trace, and read out the fee value from the ProofFeePaid event.
-        uint256 correctFee = 84900;
+        // Test 1: Sending less than the required fee
         vm.expectRevert("Incorrect fee amount");
-        pdpVerifier.provePossession{value: correctFee-1}(setId, proofs);
+        pdpVerifier.provePossession{value: correctFee - 1}(setId, proofs);
 
         // Test 2: Sending more than the required fee
         vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
-        pdpVerifier.provePossession{value: correctFee + 1 ether}(setId, proofs);
+        pdpVerifier.provePossession{value: correctFee + 1}(setId, proofs);
 
         // Verify that the proof was accepted
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), challengeEpoch, "Next challenge epoch should remain unchanged after prove");
