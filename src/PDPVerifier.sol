@@ -400,7 +400,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Note that this method is not restricted to the proof set owner.
     function provePossession(uint256 setId, Proof[] calldata proofs) public payable {
         uint256 initialGas = gasleft();
-        require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
+        require(msg.sender == proofSetOwner[setId], "Only the owner can prove possession");
         require(proofs.length > 0, "empty proof");
         {
             uint256 challengeEpoch = nextChallengeEpoch[setId];
