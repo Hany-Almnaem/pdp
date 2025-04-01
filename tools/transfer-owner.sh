@@ -15,11 +15,6 @@ if [ -z "$KEYSTORE" ]; then
   exit 1
 fi
 
-if [ -z "$PASSWORD" ]; then
-  echo "Error: PASSWORD is not set"
-  exit 1
-fi
-
 if [ -z "$CONTRACT_ADDRESS" ]; then
   echo "Error: CONTRACT_ADDRESS is not set"
   exit 1
