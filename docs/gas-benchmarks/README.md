@@ -30,9 +30,13 @@ Below is a summary of gas costs by operation type and data characteristics:
 
 ## Observations
 
-- **ProvePossession** operations are the most gas-intensive, with costs increasing with both dataset size and root count.
+- **ProvePossession** operations are the most gas-intensive, with costs influenced by a combination of dataset size and root count. The correlation isn't as strong because costs are influenced by a linear combination of two different logarithmic functions: log(# roots) + log(proof set size).
 - **NextProvingPeriod** operations have relatively consistent gas costs regardless of dataset characteristics.
-- **AddRoots** operations show a clear correlation between root count and gas cost, with costs scaling linearly with the number of roots.
+- **AddRoots** operations show a clear correlation between root count and gas cost, with costs scaling logarithmically with the number of roots.
+
+![ProvePossession Gas for ProofSet Size](ProvePosession%20Gas%20by%20ProofSet%20Size.png)
+
+![AddRoots Gas by ProofSet Size](AddRoots%20Gas%20by%20ProofSet%20Size.png)
 
 ## Raw Data
 
