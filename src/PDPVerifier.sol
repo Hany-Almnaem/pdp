@@ -549,15 +549,17 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         // Take removed roots out of proving set
         uint256[] storage removals = scheduledRemovals[setId];
         uint256 nRemovals = removals.length;
-        uint256[] memory removalsToProcess = new uint256[](nRemovals);
+        if (nRemovals > 0) {
+            uint256[] memory removalsToProcess = new uint256[](nRemovals);
 
-        for (uint256 i = 0; i < nRemovals; i++) {
-            removalsToProcess[i] = removals[removals.length - 1];
-            removals.pop();
+            for (uint256 i = 0; i < nRemovals; i++) {
+                removalsToProcess[i] = removals[removals.length - 1];
+                removals.pop();
+            }
+
+            removeRoots(setId, removalsToProcess);
+            emit RootsRemoved(setId, removalsToProcess);
         }
-
-        removeRoots(setId, removalsToProcess);
-        emit RootsRemoved(setId, removalsToProcess);
         
         // Bring added roots into proving set
         challengeRange[setId] = proofSetLeafCount[setId];
