@@ -12,6 +12,21 @@
 ## Overview
 This project contains the implementation of the PDP service contract, auxiliary contracts, and development tools for the Provable Data Possession protocol.
 
+### Contracts
+
+The PDP service contract and the PDP verifier contracts are deployed on Filecoin Mainnet and Calibration Testnet. 
+
+> Disclaimer: ⚠️ These contracts are still under alpha testing and might be upgraded for bug fixes and/or improvements. Please use with caution for production environments. ⚠️
+
+**Mainnet**
+- [PDP Verifier]([url](https://github.com/FilOzone/pdp/blob/main/src/PDPVerifier.sol)): [0x1285B4D8CA94AD167dB37ac161762ecA8cE7C0dB]([url](https://filfox.info/en/address/0x1285B4D8CA94AD167dB37ac161762ecA8cE7C0dB))
+- [PDP Service]([url](https://github.com/FilOzone/pdp/blob/main/src/SimplePDPService.sol)): [0xf47FE41e78d0356471244740B7d57e42E5456891]([url](https://filfox.info/en/address/0xf47FE41e78d0356471244740B7d57e42E5456891))
+- [PDP Service Proxy]([url](https://github.com/FilOzone/pdp/blob/main/src/ERC1967Proxy.sol)): [0x805370387fA5Bd8053FD8f7B2da4055B9a4f8019]([url](https://filfox.info/en/address/0x805370387fA5Bd8053FD8f7B2da4055B9a4f8019))
+
+**Calibration Testnet**
+- [PDP Verifier]([url](https://github.com/FilOzone/pdp/blob/main/src/PDPVerifier.sol)): [0x159C8b1FBFB7240Db85A1d75cf0B2Cc7C09f932d]([url](https://filfox.info/en/address/0x159C8b1FBFB7240Db85A1d75cf0B2Cc7C09f932d))
+- [PDP Service]([url](https://github.com/FilOzone/pdp/blob/main/src/SimplePDPService.sol)): [0x7F0dCeA9D4FB65Cc5801Dc5dfc71b4Ae006484D0]([url](https://filfox.info/en/address/0x7F0dCeA9D4FB65Cc5801Dc5dfc71b4Ae006484D0))
+
 ## Build
 ```
 make build 
