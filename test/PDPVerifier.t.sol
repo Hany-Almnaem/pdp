@@ -808,6 +808,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
         event Debug(string message, uint256 value);
 
     function testProveWithDifferentFeeAmounts() public {
+        vm.fee(0 gwei);
         // Mock Pyth oracle call to return $5 USD/FIL
         (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
         price.price = 1;

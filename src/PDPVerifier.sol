@@ -59,8 +59,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // Types
     // State fields
-     event Debug(string message, uint256 value);
-
     /*
     A proof set is the metadata required for tracking data for proof of possession.
     It maintains a list of CIDs of data to be proven and metadata needed to
