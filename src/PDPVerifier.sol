@@ -50,7 +50,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     event RootsAdded(uint256 indexed setId, uint256[] rootIds);
     event RootsRemoved(uint256 indexed setId, uint256[] rootIds);
-   
+
     event ProofFeePaid(uint256 indexed setId, uint256 fee, uint64 price, int32 expo);
 
 
@@ -96,7 +96,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // randomness sampling for challenge generation.
     //
     // The purpose of this delay is to prevent SPs from biasing randomness by running forking attacks.
-    // Given a small enough challengeFinality an SP can run several trials of challenge sampling and 
+    // Given a small enough challengeFinality an SP can run several trials of challenge sampling and
     // fork around samples that don't suit them, grinding the challenge randomness.
     // For the filecoin L1, a safe value is 150 using the same analysis setting 150 epochs between
     // PoRep precommit and PoRep provecommit phases.
@@ -324,7 +324,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     }
 
     // Appends new roots to the collection managed by a proof set.
-    // These roots won't be challenged until the next proving period is 
+    // These roots won't be challenged until the next proving period is
     // started by calling nextProvingPeriod.
     function addRoots(uint256 setId, RootData[] calldata rootData, bytes calldata extraData) public returns (uint256) {
         uint256 nRoots = rootData.length;
@@ -399,7 +399,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     // Verifies and records that the provider proved possession of the
     // proof set Merkle roots at some epoch. The challenge seed is determined
     // by the epoch of the previous proof of possession.
-    // Note that this method is not restricted to the proof set owner.
     function provePossession(uint256 setId, Proof[] calldata proofs) public payable {
         uint256 initialGas = gasleft();
         uint256 nProofs = proofs.length;
@@ -412,7 +411,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
 
         RootIdAndOffset[] memory challenges = new RootIdAndOffset[](proofs.length);
-        
+
         uint256 seed = drawChallengeSeed(setId);
         {
             uint256 leafCount = challengeRange[setId];
@@ -441,7 +440,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             }
         }
 
-     
+
         // Note: We don't want to include gas spent on the listener call in the fee calculation
         // to only account for proof verification fees and avoid gamability by getting the listener
         // to do extraneous work just to inflate the gas fee.
@@ -492,7 +491,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             filUsdPriceExpo,
             rawSize,
             block.number - proofSetLastProvenEpoch[setId]
-        );        
+        );
         burnFee(proofFee);
         emit ProofFeePaid(setId, proofFee, filUsdPrice, filUsdPriceExpo);
 
@@ -541,7 +540,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         require(extraData.length <= EXTRA_DATA_MAX_SIZE, "Extra data too large");
         require(msg.sender == proofSetOwner[setId], "only the owner can move to next proving period");
         require(proofSetLeafCount[setId] > 0, "can only start proving once leaves are added");
-        
+
         if (proofSetLastProvenEpoch[setId] == NO_PROVEN_EPOCH) {
             proofSetLastProvenEpoch[setId] = block.number;
         }
@@ -560,7 +559,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
             removeRoots(setId, removalsToProcess);
             emit RootsRemoved(setId, removalsToProcess);
         }
-        
+
         // Bring added roots into proving set
         challengeRange[setId] = proofSetLeafCount[setId];
         if (challengeEpoch < block.number + challengeFinality) {
