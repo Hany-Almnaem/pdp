@@ -1095,6 +1095,35 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     }
 
 
+    function testProveSingleFake() public {
+        // Mock Pyth oracle call to return $5 USD/FIL
+        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
+
+        uint leafCount = 10;
+        (uint256 setId, bytes32[][] memory tree) = makeProofSetWithOneRoot(leafCount);
+
+        // Advance chain until challenge epoch.
+        uint256 challengeEpoch = pdpVerifier.getNextChallengeEpoch(setId);
+        vm.roll(challengeEpoch);
+
+        uint challengeCount = 3;
+        // build fake proofs
+        PDPVerifier.Proof[] memory proofs = new PDPVerifier.Proof[](5);
+        for (uint i = 0; i < 5; i++) {
+            proofs[i] = PDPVerifier.Proof(tree[0][0], new bytes32[](0));
+        }
+
+        // Submit proof.
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(challengeEpoch), abi.encode(challengeEpoch));
+        PDPVerifier.RootIdAndOffset[] memory challenges = new PDPVerifier.RootIdAndOffset[](challengeCount);
+        for (uint i = 0; i < challengeCount; i++) {
+            challenges[i] = PDPVerifier.RootIdAndOffset(0, 0);
+        }
+        vm.expectRevert("proof length does not match tree height");
+        pdpVerifier.provePossession{value: 1e18}(setId, proofs);
+    }
+
     ///// Helpers /////
 
     // Initializes a new proof set, generates trees of specified sizes, and adds roots to the set.
