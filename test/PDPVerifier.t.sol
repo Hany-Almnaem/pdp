@@ -842,9 +842,6 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
             pdpVerifier.provePossession{value: sender.balance}(setId, proofs);
             uint256 balanceAfter = sender.balance;
             correctFee = balanceBefore - balanceAfter;
-            emit Debug("balanceBefore", balanceBefore);
-            emit Debug("balanceAfter", balanceAfter);
-            emit Debug("correctFee", correctFee);
             vm.revertToStateAndDelete(snapshotId);
         }
 
