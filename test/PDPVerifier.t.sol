@@ -805,6 +805,7 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
     }
 
     receive() external payable {}
+        event Debug(string message, uint256 value);
 
     function testProveWithDifferentFeeAmounts() public {
         // Mock Pyth oracle call to return $5 USD/FIL
@@ -840,6 +841,9 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
             pdpVerifier.provePossession{value: sender.balance}(setId, proofs);
             uint256 balanceAfter = sender.balance;
             correctFee = balanceBefore - balanceAfter;
+            emit Debug("balanceBefore", balanceBefore);
+            emit Debug("balanceAfter", balanceAfter);
+            emit Debug("correctFee", correctFee);
             vm.revertToStateAndDelete(snapshotId);
         }
 

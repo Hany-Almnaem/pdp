@@ -430,16 +430,17 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 // To remove this deviation we could use the standard solution of rejection sampling
                 //   This is complicated and slightly more costly at one more hash on average for maximally misaligned proofsets
                 //   and comes at no practical benefit given how small the deviation is.
+               {
                 bytes memory payload = abi.encodePacked(seed, setId, i);
                 uint256 challengeIdx = uint256(keccak256(payload)) % leafCount;
 
                 // Find the root that has this leaf, and the offset of the leaf within that root.
                 challenges[i] = findOneRootId(setId, challengeIdx, sumTreeTop);
                 bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, challenges[i].rootId));
-                uint256 levels = 256 - BitOps.clz(rootLeafCounts[setId][challenges[i].rootId]);
-                require(proofs[i].proof.length == levels, "proof length does not match root height");
-                bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset);
+                uint256 rootHeight = 256 - BitOps.clz(rootLeafCounts[setId][challenges[i].rootId] - 1) + 1;
+                bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset, rootHeight);
                 require(ok, "proof did not verify");
+               }
             }
         }
 
