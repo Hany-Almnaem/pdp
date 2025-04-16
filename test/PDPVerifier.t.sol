@@ -1085,9 +1085,9 @@ contract PDPVerifierProofTest is Test, ProofBuilderHelper {
 
         // Verify we can still prove possession at the new block
         vm.roll(nearerBlock);
-        
+
         PDPVerifier.Proof[] memory proofs = buildProofsForSingleton(setId, 5, tree, 10);
-        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(nearerBlock), abi.encode(nearerBlock));
+        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
         pdpVerifier.provePossession{value: 1e18}(setId, proofs);
     }
 
