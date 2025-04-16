@@ -59,8 +59,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
     // Types
     // State fields
-     event Debug(string message, uint256 value);
-
     /*
     A proof set is the metadata required for tracking data for proof of possession.
     It maintains a list of CIDs of data to be proven and metadata needed to
@@ -435,7 +433,8 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
                 // Find the root that has this leaf, and the offset of the leaf within that root.
                 challenges[i] = findOneRootId(setId, challengeIdx, sumTreeTop);
                 bytes32 rootHash = Cids.digestFromCid(getRootCid(setId, challenges[i].rootId));
-                bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset);
+                uint256 rootHeight = 256 - BitOps.clz(rootLeafCounts[setId][challenges[i].rootId] - 1) + 1;
+                bool ok = MerkleVerify.verify(proofs[i].proof, rootHash, proofs[i].leaf, challenges[i].offset, rootHeight);
                 require(ok, "proof did not verify");
             }
         }
