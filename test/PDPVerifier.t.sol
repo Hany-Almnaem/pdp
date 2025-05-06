@@ -1662,6 +1662,38 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         return (pythCallData, price);
     }
 
+    function createPythUnsafeCallData() internal view returns (bytes memory, PythStructs.Price memory) {
+        bytes memory callData = abi.encodeWithSelector(
+            IPyth.getPriceUnsafe.selector,
+            pdpVerifier.FIL_USD_PRICE_FEED_ID()
+        );
+
+        PythStructs.Price memory price = PythStructs.Price({
+            price: 6,
+            conf: 0,
+            expo: 0,
+            publishTime: 0
+        });
+
+        return (callData, price);
+    }
+
+    function testGetPriceOracleFailure() public {
+        (bytes memory pythCallData, PythStructs.Price memory _notReturnedPrice) = createPythCallData();
+        bytes memory errorData = abi.encodeWithSelector(bytes4(keccak256("StalePrice()")));
+        vm.mockCallRevert(address(pdpVerifier.PYTH()), pythCallData, errorData);
+        (bytes memory pythFallbackCallData, PythStructs.Price memory price) = createPythUnsafeCallData();
+        vm.mockCall(address(pdpVerifier.PYTH()), pythFallbackCallData, abi.encode(price));
+
+        vm.expectEmit(true, false, false, false);
+        emit PDPVerifier.PriceOracleFailure(errorData);
+
+        (uint64 priceOut, int32 expoOut) = pdpVerifier.getFILUSDPrice();
+        assertEq(priceOut, uint64(6), "Price should be 6");
+        assertEq(expoOut, int32(0), "Expo should be 0");
+
+    }
+
     function testCompleteProvingPeriodE2E() public {
         // Mock Pyth oracle call to return $5 USD/FIL
         (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
