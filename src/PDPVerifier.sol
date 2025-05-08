@@ -146,8 +146,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
     string public constant VERSION = "1.1.0";
     event ContractUpgraded(string version, address implementation);
 
-    function migrate() public onlyProxy reinitializer(2) {
-        require(msg.sender == address(this), "Only callable by self during upgrade");
+    function migrate() external onlyOwner reinitializer(2) {
         emit ContractUpgraded(VERSION, ERC1967Utils.getImplementation());
     }
 
