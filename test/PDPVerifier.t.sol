@@ -1782,3 +1782,26 @@ contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
         assertEq(pdpVerifier.getNextChallengeEpoch(setId), block.number + challengeFinalityDelay, "Next challenge epoch should be updated");
     }
 }
+
+contract PDPVerifierMigrateTest is Test {
+    PDPVerifier implementation;
+    PDPVerifier newImplementation;
+    MyERC1967Proxy proxy;
+
+    function setUp() public {
+        bytes memory initializeData = abi.encodeWithSelector(PDPVerifier.initialize.selector,2);
+        implementation = new PDPVerifier();
+        newImplementation = new PDPVerifier();
+        proxy = new MyERC1967Proxy(address(implementation), initializeData);
+    }
+
+    function testMigrate() public {
+        vm.expectEmit(true, true, true, true);
+        emit PDPVerifier.ContractUpgraded(newImplementation.VERSION(), address(newImplementation));
+        bytes memory migrationCall = abi.encodeWithSelector(PDPVerifier.migrate.selector);
+        UUPSUpgradeable(address(proxy)).upgradeToAndCall(address(newImplementation), migrationCall);
+        // Second call should fail because reinitializer(2) can only be called once
+        vm.expectRevert("InvalidInitialization()");
+        UUPSUpgradeable(address(proxy)).upgradeToAndCall(address(newImplementation), migrationCall);
+    }
+}

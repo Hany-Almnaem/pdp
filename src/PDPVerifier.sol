@@ -143,6 +143,13 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         challengeFinality = _challengeFinality;
     }
 
+    string public constant VERSION = "1.1.0";
+    event ContractUpgraded(string version, address implementation);
+
+    function migrate() external onlyOwner reinitializer(2) {
+        emit ContractUpgraded(VERSION, ERC1967Utils.getImplementation());
+    }
+
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
 
     function burnFee(uint256 amount) internal {
