@@ -704,6 +704,38 @@ contract ProofBuilderHelper is Test {
 // TestingRecordKeeperService is a PDPListener that allows any amount of proof challenges
 // to help with more flexible testing.
 contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
+    // State to record the last ownerChanged call
+    uint256 public lastOwnerChangedProofSetId;
+    address public lastOwnerChangedOldOwner;
+    address public lastOwnerChangedNewOwner;
+    uint256 public ownerChangedCallCount;
+    bool private _shouldRevertOnOwnerChanged;
+
+    // Event for test assertions
+    event OwnerChangedCalled(uint256 proofSetId, address oldOwner, address newOwner);
+
+    // Setter function to avoid getter function conflicts
+    function setShouldRevertOnOwnerChanged(bool value) external {
+        _shouldRevertOnOwnerChanged = value;
+    }
+
+    // Getter function
+    function shouldRevertOnOwnerChanged() external view returns (bool) {
+        return _shouldRevertOnOwnerChanged;
+    }
+
+    // Implement the new ownerChanged hook
+    /// @notice Called when proof set ownership is changed in PDPVerifier.
+    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner) external override {
+        if (_shouldRevertOnOwnerChanged) {
+            revert("TestingRecordKeeperService: forced revert");
+        }
+        lastOwnerChangedProofSetId = proofSetId;
+        lastOwnerChangedOldOwner = oldOwner;
+        lastOwnerChangedNewOwner = newOwner;
+        ownerChangedCallCount++;
+        emit OwnerChangedCalled(proofSetId, oldOwner, newOwner);
+    }
 
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external override {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.CREATE, abi.encode(creator));
@@ -1455,27 +1487,29 @@ contract BadListener is PDPListener {
         badOperation = operationType;
     }
 
-    function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external view {
+    function ownerChanged(uint256, address, address) external override {}
+
+    function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.CREATE, abi.encode(creator));
     }
 
-    function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata) external view {
+    function proofSetDeleted(uint256 proofSetId, uint256 deletedLeafCount, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.DELETE, abi.encode(deletedLeafCount));
     }
 
-    function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] calldata rootData, bytes calldata) external view {
+    function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] calldata rootData, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.ADD, abi.encode(firstAdded, rootData));
     }
 
-    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata rootIds, bytes calldata ) external view {
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata rootIds, bytes calldata ) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
     }
 
-    function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external view {
+    function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.PROVE_POSSESSION, abi.encode(challengedLeafCount, seed, challengeCount));
     }
 
-    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata) external view {
+    function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD, abi.encode(challengeEpoch, leafCount));
     }
 
@@ -1540,6 +1574,8 @@ contract PDPListenerIntegrationTest is Test {
 
 contract ExtraDataListener is PDPListener {
     mapping(uint256 => mapping(PDPRecordKeeper.OperationType => bytes)) public extraDataBySetId;
+
+    function ownerChanged(uint256, address, address) external override {}
 
     function proofSetCreated(uint256 proofSetId, address, bytes calldata extraData) external {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.CREATE] = extraData;
@@ -1803,5 +1839,65 @@ contract PDPVerifierMigrateTest is Test {
         // Second call should fail because reinitializer(2) can only be called once
         vm.expectRevert("InvalidInitialization()");
         UUPSUpgradeable(address(proxy)).upgradeToAndCall(address(newImplementation), migrationCall);
+    }
+}
+
+contract PDPVerifierOwnershipListenerTest is Test {
+    PDPVerifier pdpVerifier;
+    TestingRecordKeeperService listener;
+    address public owner;
+    address public nextOwner;
+    address public nonOwner;
+    bytes empty = new bytes(0);
+
+    function setUp() public {
+        PDPVerifier pdpVerifierImpl = new PDPVerifier();
+        bytes memory initializeData = abi.encodeWithSelector(
+            PDPVerifier.initialize.selector,
+            2
+        );
+        MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
+        pdpVerifier = PDPVerifier(address(proxy));
+        listener = new TestingRecordKeeperService();
+        owner = address(this);
+        nextOwner = address(0x1234);
+        nonOwner = address(0xffff);
+    }
+
+    function testOwnerChangedCalledOnOwnershipTransfer() public {
+        // Register listener and create proof set
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        pdpVerifier.proposeProofSetOwner(setId, nextOwner);
+        vm.prank(nextOwner);
+        pdpVerifier.claimProofSetOwnership(setId);
+        // Assert the listener's ownerChanged was called with correct params
+        assertEq(listener.lastOwnerChangedProofSetId(), setId, "Proof set ID mismatch");
+        assertEq(listener.lastOwnerChangedOldOwner(), owner, "Old owner mismatch");
+        assertEq(listener.lastOwnerChangedNewOwner(), nextOwner, "New owner mismatch");
+        assertEq(listener.ownerChangedCallCount(), 1, "ownerChanged should be called once");
+    }
+
+    function testNoListenerNoRevert() public {
+        // Create proof set with no listener
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(0), empty);
+        pdpVerifier.proposeProofSetOwner(setId, nextOwner);
+        vm.prank(nextOwner);
+        // Should not revert even though listenerAddr is zero
+        pdpVerifier.claimProofSetOwnership(setId);
+        // No assertion needed, test passes if no revert
+    }
+
+    function testListenerRevertDoesNotRevertMainTx() public {
+        // Register listener and create proof set
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
+        pdpVerifier.proposeProofSetOwner(setId, nextOwner);
+        // Set the listener to revert on ownerChanged
+        listener.setShouldRevertOnOwnerChanged(true);
+        vm.prank(nextOwner);
+        // Should not revert even though listener reverts
+        pdpVerifier.claimProofSetOwnership(setId);
+        // ownerChangedCallCount should still be incremented if not reverted before increment
+        // But in our implementation, revert happens before increment, so call count remains 0
+        assertEq(listener.ownerChangedCallCount(), 0, "ownerChanged should not be called if listener reverts");
     }
 }
