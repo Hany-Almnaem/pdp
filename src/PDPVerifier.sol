@@ -24,7 +24,7 @@ interface PDPListener {
     function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
     function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata extraData) external;
     /// @notice Called when proof set ownership is changed in PDPVerifier.
-    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner) external;
+    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner, bytes calldata extraData) external;
 }
 
 contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -274,7 +274,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit ProofSetOwnerChanged(setId, oldOwner, msg.sender);
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
-            try PDPListener(listenerAddr).ownerChanged(setId, oldOwner, msg.sender) {} catch {}
+            PDPListener(listenerAddr).ownerChanged(setId, oldOwner, msg.sender, "");
         }
     }
 
