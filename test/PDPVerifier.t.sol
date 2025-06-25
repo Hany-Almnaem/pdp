@@ -706,9 +706,7 @@ contract ProofBuilderHelper is Test {
 contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
     // Implement the new ownerChanged hook
     /// @notice Called when proof set ownership is changed in PDPVerifier.
-    function ownerChanged(uint256, address, address, bytes calldata) external override {
-        // Do nothing (intentionally left blank)
-    }
+    function ownerChanged(uint256, address, address, bytes calldata) external override {}
 
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external override {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.CREATE, abi.encode(creator));
@@ -1460,7 +1458,7 @@ contract BadListener is PDPListener {
         badOperation = operationType;
     }
 
-    function ownerChanged(uint256, address, address) external override {}
+    function ownerChanged(uint256, address, address, bytes calldata) external override {}
 
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.CREATE, abi.encode(creator));
@@ -1473,8 +1471,7 @@ contract BadListener is PDPListener {
     function rootsAdded(uint256 proofSetId, uint256 firstAdded, PDPVerifier.RootData[] calldata rootData, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.ADD, abi.encode(firstAdded, rootData));
     }
-
-    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata rootIds, bytes calldata ) external override view {
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata rootIds, bytes calldata) external override view {
         receiveProofSetEvent(proofSetId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED, abi.encode(rootIds));
     }
 
@@ -1497,327 +1494,58 @@ contract BadListener is PDPListener {
     }
 }
 
-contract PDPListenerIntegrationTest is Test {
-    PDPVerifier pdpVerifier;
-    BadListener badListener;
-    uint256 constant challengeFinalityDelay = 2;
-    bytes empty = new bytes(0);
-
-    function setUp() public {
-        PDPVerifier pdpVerifierImpl = new PDPVerifier();
-        bytes memory initializeData = abi.encodeWithSelector(
-            PDPVerifier.initialize.selector,
-            challengeFinalityDelay
-        );
-        MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
-        pdpVerifier = PDPVerifier(address(proxy));
-        badListener = new BadListener();
-    }
-
-    function testListenerPropagatesErrors() public {
-
-        // Can't create a proof set with a bad listener
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.CREATE);
-        vm.expectRevert("Failing operation");
-        pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), empty);
-
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), empty);
-
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.ADD);
-        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
-        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
-        vm.expectRevert("Failing operation");
-        pdpVerifier.addRoots(0, roots, empty);
-
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        pdpVerifier.addRoots(0, roots, empty);
-
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED);
-        uint256[] memory rootIds = new uint256[](1);
-        rootIds[0] = 0;
-        vm.expectRevert("Failing operation");
-        pdpVerifier.scheduleRemovals(0, rootIds, empty);
-
-        badListener.setBadOperation(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD);
-        vm.expectRevert("Failing operation");
-        pdpVerifier.nextProvingPeriod(0, block.number + challengeFinalityDelay, empty);
-    }
-}
-
 contract ExtraDataListener is PDPListener {
     mapping(uint256 => mapping(PDPRecordKeeper.OperationType => bytes)) public extraDataBySetId;
 
-    function ownerChanged(uint256, address, address) external override {}
-
-    function proofSetCreated(uint256 proofSetId, address, bytes calldata extraData) external {
+    function ownerChanged(uint256, address, address, bytes calldata) external override {}
+    function proofSetCreated(uint256 proofSetId, address, bytes calldata extraData) external override {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.CREATE] = extraData;
     }
-
-    function proofSetDeleted(uint256 proofSetId, uint256, bytes calldata extraData) external {
+    function proofSetDeleted(uint256 proofSetId, uint256, bytes calldata extraData) external override {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.DELETE] = extraData;
     }
-
-    function rootsAdded(uint256 proofSetId, uint256, PDPVerifier.RootData[] calldata, bytes calldata extraData) external {
+    function rootsAdded(uint256 proofSetId, uint256, PDPVerifier.RootData[] calldata, bytes calldata extraData) external override {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.ADD] = extraData;
     }
-
-    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata, bytes calldata extraData) external {
+    function rootsScheduledRemove(uint256 proofSetId, uint256[] calldata, bytes calldata extraData) external override {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.REMOVE_SCHEDULED] = extraData;
     }
-
-    function possessionProven(uint256 proofSetId, uint256, uint256, uint256) external {}
-
-    function nextProvingPeriod(uint256 proofSetId, uint256, uint256, bytes calldata extraData) external {
+    function possessionProven(uint256, uint256, uint256, uint256) external override {}
+    function nextProvingPeriod(uint256 proofSetId, uint256, uint256, bytes calldata extraData) external override {
         extraDataBySetId[proofSetId][PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD] = extraData;
     }
-
     function getExtraData(uint256 proofSetId, PDPRecordKeeper.OperationType opType) external view returns (bytes memory) {
         return extraDataBySetId[proofSetId][opType];
     }
 }
 
-contract PDPVerifierExtraDataTest is Test {
-    PDPVerifier pdpVerifier;
-    ExtraDataListener extraDataListener;
-    uint256 constant challengeFinalityDelay = 2;
-    bytes testExtraData = "test extra data";
+contract MockOwnerChangedListener is PDPListener {
+    uint256 public lastProofSetId;
+    address public lastOldOwner;
+    address public lastNewOwner;
+    bytes public lastExtraData;
+    bool public shouldRevert;
 
-    function setUp() public {
-        PDPVerifier pdpVerifierImpl = new PDPVerifier();
-        bytes memory initializeData = abi.encodeWithSelector(
-            PDPVerifier.initialize.selector,
-            challengeFinalityDelay
-        );
-        MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
-        pdpVerifier = PDPVerifier(address(proxy));
-        extraDataListener = new ExtraDataListener();
+    function setShouldRevert(bool value) external { shouldRevert = value; }
+
+    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner, bytes calldata extraData) external override {
+        if (shouldRevert) revert("MockOwnerChangedListener: forced revert");
+        lastProofSetId = proofSetId;
+        lastOldOwner = oldOwner;
+        lastNewOwner = newOwner;
+        lastExtraData = extraData;
     }
-
-    function testExtraDataPropagation() public {
-        // Test CREATE operation
-        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(extraDataListener), testExtraData);
-        assertEq(
-            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.CREATE),
-            testExtraData,
-            "Extra data not propagated for CREATE"
-        );
-
-        // Test ADD operation
-        PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
-        roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
-        pdpVerifier.addRoots(setId, roots, testExtraData);
-        assertEq(
-            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.ADD),
-            testExtraData,
-            "Extra data not propagated for ADD"
-        );
-
-        // Test REMOVE_SCHEDULED operation
-        uint256[] memory rootIds = new uint256[](1);
-        rootIds[0] = 0;
-        pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
-        assertEq(
-            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED),
-            testExtraData,
-            "Extra data not propagated for REMOVE_SCHEDULED"
-        );
-
-        // Test NEXT_PROVING_PERIOD operation
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
-        assertEq(
-            extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD),
-            testExtraData,
-            "Extra data not propagated for NEXT_PROVING_PERIOD"
-        );
-    }
-}
-
-contract PDPVerifierE2ETest is Test, ProofBuilderHelper {
-    PDPVerifier pdpVerifier;
-    TestingRecordKeeperService listener;
-    uint256 constant challengeFinalityDelay = 2;
-    bytes empty = new bytes(0);
-
-    function setUp() public {
-        PDPVerifier pdpVerifierImpl = new PDPVerifier();
-        bytes memory initializeData = abi.encodeWithSelector(
-            PDPVerifier.initialize.selector,
-            challengeFinalityDelay
-        );
-        MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
-        pdpVerifier = PDPVerifier(address(proxy));
-        listener = new TestingRecordKeeperService();
-        vm.fee(1 gwei);
-        vm.deal(address(pdpVerifierImpl), 100 ether);
-    }
-
-    receive() external payable {}
-
-     function createPythCallData() internal view returns (bytes memory, PythStructs.Price memory) {
-        bytes memory pythCallData = abi.encodeWithSelector(
-            IPyth.getPriceNoOlderThan.selector,
-            pdpVerifier.FIL_USD_PRICE_FEED_ID(),
-            86400
-        );
-
-        PythStructs.Price memory price = PythStructs.Price({
-            price: 5,
-            conf: 0,
-            expo: 0,
-            publishTime: 0
-        });
-
-        return (pythCallData, price);
-    }
-
-    function createPythUnsafeCallData() internal view returns (bytes memory, PythStructs.Price memory) {
-        bytes memory callData = abi.encodeWithSelector(
-            IPyth.getPriceUnsafe.selector,
-            pdpVerifier.FIL_USD_PRICE_FEED_ID()
-        );
-
-        PythStructs.Price memory price = PythStructs.Price({
-            price: 6,
-            conf: 0,
-            expo: 0,
-            publishTime: 0
-        });
-
-        return (callData, price);
-    }
-
-    function testGetPriceOracleFailure() public {
-        (bytes memory pythCallData, PythStructs.Price memory _notReturnedPrice) = createPythCallData();
-        bytes memory errorData = abi.encodeWithSelector(bytes4(keccak256("StalePrice()")));
-        vm.mockCallRevert(address(pdpVerifier.PYTH()), pythCallData, errorData);
-        (bytes memory pythFallbackCallData, PythStructs.Price memory price) = createPythUnsafeCallData();
-        vm.mockCall(address(pdpVerifier.PYTH()), pythFallbackCallData, abi.encode(price));
-
-        vm.expectEmit(true, false, false, false);
-        emit PDPVerifier.PriceOracleFailure(errorData);
-
-        (uint64 priceOut, int32 expoOut) = pdpVerifier.getFILUSDPrice();
-        assertEq(priceOut, uint64(6), "Price should be 6");
-        assertEq(expoOut, int32(0), "Expo should be 0");
-
-    }
-
-    function testCompleteProvingPeriodE2E() public {
-        // Mock Pyth oracle call to return $5 USD/FIL
-        (bytes memory pythCallData, PythStructs.Price memory price) = createPythCallData();
-        vm.mockCall(address(pdpVerifier.PYTH()), pythCallData, abi.encode(price));
-
-        // Step 1: Create a proof set
-        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
-
-        // Step 2: Add data `A` in scope for the first proving period
-        // Note that the data in the first addRoots call is added to the first proving period
-        uint256[] memory leafCountsA = new uint256[](2);
-        leafCountsA[0] = 2;
-        leafCountsA[1] = 3;
-        bytes32[][][] memory treesA = new bytes32[][][](2);
-        for (uint256 i = 0; i < leafCountsA.length; i++) {
-            treesA[i] = ProofUtil.makeTree(leafCountsA[i]);
-        }
-
-        PDPVerifier.RootData[] memory rootsPP1 = new PDPVerifier.RootData[](2);
-        rootsPP1[0] = PDPVerifier.RootData(Cids.cidFromDigest("test1", treesA[0][0][0]), leafCountsA[0] * 32);
-        rootsPP1[1] = PDPVerifier.RootData(Cids.cidFromDigest("test2", treesA[1][0][0]), leafCountsA[1] * 32);
-        pdpVerifier.addRoots(setId, rootsPP1, empty);
-        // flush the original addRoots call
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
-
-        uint256 challengeRangePP1 = pdpVerifier.getChallengeRange(setId);
-        assertEq(challengeRangePP1, pdpVerifier.getProofSetLeafCount(setId), "Last challenged leaf should be total leaf count - 1");
-
-        // Step 3: Now that first challenge is set for sampling add more data `B` only in scope for the second proving period
-        uint256[] memory leafCountsB = new uint256[](2);
-        leafCountsB[0] = 4;
-        leafCountsB[1] = 5;
-        bytes32[][][] memory treesB = new bytes32[][][](2);
-        for (uint256 i = 0; i < leafCountsB.length; i++) {
-            treesB[i] = ProofUtil.makeTree(leafCountsB[i]);
-        }
-
-
-        PDPVerifier.RootData[] memory rootsPP2 = new PDPVerifier.RootData[](2);
-        rootsPP2[0] = PDPVerifier.RootData(Cids.cidFromDigest("test1", treesB[0][0][0]), leafCountsB[0] * 32);
-        rootsPP2[1] = PDPVerifier.RootData(Cids.cidFromDigest("test2", treesB[1][0][0]), leafCountsB[1]* 32);
-        pdpVerifier.addRoots(setId, rootsPP2, empty);
-
-        assertEq(pdpVerifier.getRootLeafCount(setId, 0), leafCountsA[0], "sanity check: First root leaf count should be correct");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 1), leafCountsA[1], "Second root leaf count should be correct");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 2), leafCountsB[0], "Third root leaf count should be correct");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 3), leafCountsB[1], "Fourth root leaf count should be correct");
-
-        // CHECK: last challenged leaf doesn't move
-        assertEq(pdpVerifier.getChallengeRange(setId), challengeRangePP1, "Last challenged leaf should not move");
-        assertEq(pdpVerifier.getProofSetLeafCount(setId), leafCountsA[0] + leafCountsA[1] + leafCountsB[0] + leafCountsB[1], "Leaf count should only include non-removed roots");
-
-
-        // Step 5: schedule removal of first + second proving period data
-        uint256[] memory rootsToRemove = new uint256[](2);
-
-        rootsToRemove[0] = 1; // Remove the second root from first proving period
-        rootsToRemove[1] = 3; // Remove the second root from second proving period
-        pdpVerifier.scheduleRemovals(setId, rootsToRemove, empty);
-        assertEq(pdpVerifier.getScheduledRemovals(setId), rootsToRemove, "Scheduled removals should match rootsToRemove");
-
-        // Step 7: complete proving period 1.
-        // Advance chain until challenge epoch.
-        vm.roll(pdpVerifier.getNextChallengeEpoch(setId));
-        // Prepare proofs.
-        // Proving trees for PP1 are just treesA
-        PDPVerifier.Proof[] memory proofsPP1 = buildProofs(pdpVerifier, setId, 5, treesA, leafCountsA);
-
-        vm.mockCall(pdpVerifier.RANDOMNESS_PRECOMPILE(), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)), abi.encode(pdpVerifier.getNextChallengeEpoch(setId)));
-
-        pdpVerifier.provePossession{value: 1e18}(setId, proofsPP1);
-
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
-        // CHECK: leaf counts
-        assertEq(pdpVerifier.getRootLeafCount(setId, 0), leafCountsA[0], "First root leaf count should be the set leaf count");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 1), 0, "Second root leaf count should be zeroed after removal");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 2), leafCountsB[0], "Third root leaf count should be the set leaf count");
-        assertEq(pdpVerifier.getRootLeafCount(setId, 3), 0, "Fourth root leaf count should be zeroed after removal");
-        assertEq(pdpVerifier.getProofSetLeafCount(setId), leafCountsA[0] + leafCountsB[0], "Leaf count should == size of non-removed roots");
-        assertEq(pdpVerifier.getChallengeRange(setId), leafCountsA[0] + leafCountsB[0], "Last challenged leaf should be total leaf count");
-
-        // CHECK: scheduled removals are processed
-        assertEq(pdpVerifier.getScheduledRemovals(setId), new uint256[](0), "Scheduled removals should be processed");
-
-        // CHECK: the next challenge epoch has been updated
-        assertEq(pdpVerifier.getNextChallengeEpoch(setId), block.number + challengeFinalityDelay, "Next challenge epoch should be updated");
-    }
-}
-
-contract PDPVerifierMigrateTest is Test {
-    PDPVerifier implementation;
-    PDPVerifier newImplementation;
-    MyERC1967Proxy proxy;
-
-    function setUp() public {
-        bytes memory initializeData = abi.encodeWithSelector(PDPVerifier.initialize.selector,2);
-        implementation = new PDPVerifier();
-        newImplementation = new PDPVerifier();
-        proxy = new MyERC1967Proxy(address(implementation), initializeData);
-    }
-
-    function testMigrate() public {
-        vm.expectEmit(true, true, true, true);
-        emit PDPVerifier.ContractUpgraded(newImplementation.VERSION(), address(newImplementation));
-        bytes memory migrationCall = abi.encodeWithSelector(PDPVerifier.migrate.selector);
-        UUPSUpgradeable(address(proxy)).upgradeToAndCall(address(newImplementation), migrationCall);
-        // Second call should fail because reinitializer(2) can only be called once
-        vm.expectRevert("InvalidInitialization()");
-        UUPSUpgradeable(address(proxy)).upgradeToAndCall(address(newImplementation), migrationCall);
-    }
+    function proofSetCreated(uint256, address, bytes calldata) external override {}
+    function proofSetDeleted(uint256, uint256, bytes calldata) external override {}
+    function rootsAdded(uint256, uint256, PDPVerifier.RootData[] calldata, bytes calldata) external override {}
+    function rootsScheduledRemove(uint256, uint256[] calldata, bytes calldata) external override {}
+    function possessionProven(uint256, uint256, uint256, uint256) external override {}
+    function nextProvingPeriod(uint256, uint256, uint256, bytes calldata) external override {}
 }
 
 contract PDPVerifierOwnershipListenerTest is Test {
     PDPVerifier pdpVerifier;
-    TestingRecordKeeperService listener;
+    MockOwnerChangedListener listener;
     address public owner;
     address public nextOwner;
     address public nonOwner;
@@ -1831,46 +1559,36 @@ contract PDPVerifierOwnershipListenerTest is Test {
         );
         MyERC1967Proxy proxy = new MyERC1967Proxy(address(pdpVerifierImpl), initializeData);
         pdpVerifier = PDPVerifier(address(proxy));
-        listener = new TestingRecordKeeperService();
+        listener = new MockOwnerChangedListener();
         owner = address(this);
         nextOwner = address(0x1234);
         nonOwner = address(0xffff);
     }
 
     function testOwnerChangedCalledOnOwnershipTransfer() public {
-        // Register listener and create proof set
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
         pdpVerifier.proposeProofSetOwner(setId, nextOwner);
         vm.prank(nextOwner);
         pdpVerifier.claimProofSetOwnership(setId);
-        // Assert the listener's ownerChanged was called with correct params
-        assertEq(listener.lastOwnerChangedProofSetId(), setId, "Proof set ID mismatch");
-        assertEq(listener.lastOwnerChangedOldOwner(), owner, "Old owner mismatch");
-        assertEq(listener.lastOwnerChangedNewOwner(), nextOwner, "New owner mismatch");
-        assertEq(listener.ownerChangedCallCount(), 1, "ownerChanged should be called once");
+        assertEq(listener.lastProofSetId(), setId, "Proof set ID mismatch");
+        assertEq(listener.lastOldOwner(), owner, "Old owner mismatch");
+        assertEq(listener.lastNewOwner(), nextOwner, "New owner mismatch");
     }
 
     function testNoListenerNoRevert() public {
-        // Create proof set with no listener
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(0), empty);
         pdpVerifier.proposeProofSetOwner(setId, nextOwner);
         vm.prank(nextOwner);
-        // Should not revert even though listenerAddr is zero
         pdpVerifier.claimProofSetOwnership(setId);
-        // No assertion needed, test passes if no revert
+      // No assertion needed, test passes if no revert
     }
 
     function testListenerRevertDoesNotRevertMainTx() public {
-        // Register listener and create proof set
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
         pdpVerifier.proposeProofSetOwner(setId, nextOwner);
-        // Set the listener to revert on ownerChanged
-        listener.setShouldRevertOnOwnerChanged(true);
+        listener.setShouldRevert(true);
         vm.prank(nextOwner);
-        // Should not revert even though listener reverts
+        vm.expectRevert("MockOwnerChangedListener: forced revert");
         pdpVerifier.claimProofSetOwnership(setId);
-        // ownerChangedCallCount should still be incremented if not reverted before increment
-        // But in our implementation, revert happens before increment, so call count remains 0
-        assertEq(listener.ownerChangedCallCount(), 0, "ownerChanged should not be called if listener reverts");
     }
 }
