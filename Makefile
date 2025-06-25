@@ -18,7 +18,6 @@ all: install build test
 .PHONY: install
 install:
 	forge install
-	npm install
 
 # Build target
 .PHONY: build
