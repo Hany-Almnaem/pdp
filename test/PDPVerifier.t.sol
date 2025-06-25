@@ -704,37 +704,10 @@ contract ProofBuilderHelper is Test {
 // TestingRecordKeeperService is a PDPListener that allows any amount of proof challenges
 // to help with more flexible testing.
 contract TestingRecordKeeperService is PDPListener, PDPRecordKeeper {
-    // State to record the last ownerChanged call
-    uint256 public lastOwnerChangedProofSetId;
-    address public lastOwnerChangedOldOwner;
-    address public lastOwnerChangedNewOwner;
-    uint256 public ownerChangedCallCount;
-    bool private _shouldRevertOnOwnerChanged;
-
-    // Event for test assertions
-    event OwnerChangedCalled(uint256 proofSetId, address oldOwner, address newOwner);
-
-    // Setter function to avoid getter function conflicts
-    function setShouldRevertOnOwnerChanged(bool value) external {
-        _shouldRevertOnOwnerChanged = value;
-    }
-
-    // Getter function
-    function shouldRevertOnOwnerChanged() external view returns (bool) {
-        return _shouldRevertOnOwnerChanged;
-    }
-
     // Implement the new ownerChanged hook
     /// @notice Called when proof set ownership is changed in PDPVerifier.
-    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner) external override {
-        if (_shouldRevertOnOwnerChanged) {
-            revert("TestingRecordKeeperService: forced revert");
-        }
-        lastOwnerChangedProofSetId = proofSetId;
-        lastOwnerChangedOldOwner = oldOwner;
-        lastOwnerChangedNewOwner = newOwner;
-        ownerChangedCallCount++;
-        emit OwnerChangedCalled(proofSetId, oldOwner, newOwner);
+    function ownerChanged(uint256, address, address, bytes calldata) external override {
+        // Do nothing (intentionally left blank)
     }
 
     function proofSetCreated(uint256 proofSetId, address creator, bytes calldata) external override {
