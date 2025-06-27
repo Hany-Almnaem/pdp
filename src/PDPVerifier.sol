@@ -23,6 +23,8 @@ interface PDPListener {
     // Note: extraData not included as proving messages conceptually always originate from the SP
     function possessionProven(uint256 proofSetId, uint256 challengedLeafCount, uint256 seed, uint256 challengeCount) external;
     function nextProvingPeriod(uint256 proofSetId, uint256 challengeEpoch, uint256 leafCount, bytes calldata extraData) external;
+    /// @notice Called when proof set ownership is changed in PDPVerifier.
+    function ownerChanged(uint256 proofSetId, address oldOwner, address newOwner, bytes calldata extraData) external;
 }
 
 contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
@@ -263,13 +265,17 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
-    function claimProofSetOwnership(uint256 setId) public {
+    function claimProofSetOwnership(uint256 setId, bytes calldata extraData) public {
         require(proofSetLive(setId), "Proof set not live");
         require(proofSetProposedOwner[setId] == msg.sender, "Only the proposed owner can claim ownership");
         address oldOwner = proofSetOwner[setId];
         proofSetOwner[setId] = msg.sender;
         delete proofSetProposedOwner[setId];
         emit ProofSetOwnerChanged(setId, oldOwner, msg.sender);
+        address listenerAddr = proofSetListener[setId];
+        if (listenerAddr != address(0)) {
+            PDPListener(listenerAddr).ownerChanged(setId, oldOwner, msg.sender, extraData);
+        }
     }
 
     // A proof set is created empty, with no roots. Creation yields a proof set ID
