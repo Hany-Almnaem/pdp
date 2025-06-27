@@ -183,7 +183,7 @@ contract PDPVerifierOwnershipTest is Test {
 
         vm.expectEmit(true, true, false, false);
         emit PDPVerifier.ProofSetOwnerChanged(setId, owner, nextOwner);
-        pdpVerifier.claimProofSetOwnership(setId);
+        pdpVerifier.claimProofSetOwnership(setId, empty);
         (address ownerEnd, address proposedOwnerEnd) = pdpVerifier.getProofSetOwner(setId);
         assertEq(ownerEnd, nextOwner, "Proof set owner should be the next owner");
         assertEq(proposedOwnerEnd, address(0), "Proof set proposed owner should be zero address");
@@ -214,7 +214,7 @@ contract PDPVerifierOwnershipTest is Test {
 
         vm.prank(nonOwner);
         vm.expectRevert("Only the proposed owner can claim ownership");
-        pdpVerifier.claimProofSetOwnership(setId);
+        pdpVerifier.claimProofSetOwnership(setId, empty);
     }
 
     function testScheduleRemoveRootsOnlyOwner() public {
@@ -1863,7 +1863,7 @@ contract PDPVerifierOwnershipListenerTest is Test {
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(listener), empty);
         pdpVerifier.proposeProofSetOwner(setId, nextOwner);
         vm.prank(nextOwner);
-        pdpVerifier.claimProofSetOwnership(setId);
+        pdpVerifier.claimProofSetOwnership(setId, empty);
         assertEq(listener.lastProofSetId(), setId, "Proof set ID mismatch");
         assertEq(listener.lastOldOwner(), owner, "Old owner mismatch");
         assertEq(listener.lastNewOwner(), nextOwner, "New owner mismatch");
@@ -1873,7 +1873,7 @@ contract PDPVerifierOwnershipListenerTest is Test {
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(0), empty);
         pdpVerifier.proposeProofSetOwner(setId, nextOwner);
         vm.prank(nextOwner);
-        pdpVerifier.claimProofSetOwnership(setId);
+        pdpVerifier.claimProofSetOwnership(setId, empty);
       // No assertion needed, test passes if no revert
     }
 
@@ -1883,6 +1883,6 @@ contract PDPVerifierOwnershipListenerTest is Test {
         listener.setShouldRevert(true);
         vm.prank(nextOwner);
         vm.expectRevert("MockOwnerChangedListener: forced revert");
-        pdpVerifier.claimProofSetOwnership(setId);
+        pdpVerifier.claimProofSetOwnership(setId, empty);
     }
 }
