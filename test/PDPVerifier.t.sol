@@ -1514,35 +1514,35 @@ contract PDPListenerIntegrationTest is Test {
     function testListenerPropagatesErrors() public {
         badListener.setBadOperation(PDPRecordKeeper.OperationType.CREATE);
         vm.expectRevert("Failing operation");
-        pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), testExtraData);
+        pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), testExtraData);
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.ADD);
         PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
         roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
         vm.expectRevert("Failing operation");
-        pdpVerifier.addRoots(setId, roots, testExtraData);
+        pdpVerifier.addRoots(setId, roots, empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        pdpVerifier.addRoots(setId, roots, testExtraData);
+        pdpVerifier.addRoots(setId, roots, empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED);
         uint256[] memory rootIds = new uint256[](1);
         rootIds[0] = 0;
         vm.expectRevert("Failing operation");
-        pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
+        pdpVerifier.scheduleRemovals(setId, rootIds, empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
+        pdpVerifier.scheduleRemovals(setId, rootIds, empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD);
         vm.expectRevert("Failing operation");
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
 
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
     }
 }
 
@@ -1575,7 +1575,7 @@ contract PDPVerifierExtraDataTest is Test {
     PDPVerifier pdpVerifier;
     ExtraDataListener extraDataListener;
     uint256 constant challengeFinalityDelay = 2;
-    bytes testExtraData = "test extra data";
+    bytes empty = new bytes(0);
 
     function setUp() public {
         PDPVerifier pdpVerifierImpl = new PDPVerifier();
@@ -1590,38 +1590,38 @@ contract PDPVerifierExtraDataTest is Test {
 
     function testExtraDataPropagation() public {
         // Test CREATE operation
-        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(extraDataListener), testExtraData);
+        uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(extraDataListener), empty);
         assertEq(
             extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.CREATE),
-            testExtraData,
+            empty,
             "Extra data not propagated for CREATE"
         );
 
         // Test ADD operation
         PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
         roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
-        pdpVerifier.addRoots(setId, roots, testExtraData);
+        pdpVerifier.addRoots(setId, roots, empty);
         assertEq(
             extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.ADD),
-            testExtraData,
+            empty,
             "Extra data not propagated for ADD"
         );
 
         // Test REMOVE_SCHEDULED operation
         uint256[] memory rootIds = new uint256[](1);
         rootIds[0] = 0;
-        pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
+        pdpVerifier.scheduleRemovals(setId, rootIds, empty);
         assertEq(
             extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.REMOVE_SCHEDULED),
-            testExtraData,
+            empty,
             "Extra data not propagated for REMOVE_SCHEDULED"
         );
 
         // Test NEXT_PROVING_PERIOD operation
-        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
+        pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, empty);
         assertEq(
             extraDataListener.getExtraData(setId, PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD),
-            testExtraData,
+            empty,
             "Extra data not propagated for NEXT_PROVING_PERIOD"
         );
     }
