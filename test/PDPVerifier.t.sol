@@ -1499,7 +1499,6 @@ contract PDPListenerIntegrationTest is Test {
     BadListener badListener;
     uint256 constant challengeFinalityDelay = 2;
     bytes empty = new bytes(0);
-    bytes testExtraData = "test extra data";
 
     function setUp() public {
         PDPVerifier pdpVerifierImpl = new PDPVerifier();
@@ -1513,43 +1512,35 @@ contract PDPListenerIntegrationTest is Test {
     }
 
     function testListenerPropagatesErrors() public {
-        // CREATE operation
         badListener.setBadOperation(PDPRecordKeeper.OperationType.CREATE);
         vm.expectRevert("Failing operation");
         pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), testExtraData);
 
-        // Happy path for CREATE
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
         uint256 setId = pdpVerifier.createProofSet{value: PDPFees.sybilFee()}(address(badListener), testExtraData);
 
-        // ADD operation
         badListener.setBadOperation(PDPRecordKeeper.OperationType.ADD);
         PDPVerifier.RootData[] memory roots = new PDPVerifier.RootData[](1);
         roots[0] = PDPVerifier.RootData(Cids.Cid(abi.encodePacked("test")), 32);
         vm.expectRevert("Failing operation");
         pdpVerifier.addRoots(setId, roots, testExtraData);
 
-        // Happy path for ADD
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
         pdpVerifier.addRoots(setId, roots, testExtraData);
 
-        // REMOVE_SCHEDULED operation
         badListener.setBadOperation(PDPRecordKeeper.OperationType.REMOVE_SCHEDULED);
         uint256[] memory rootIds = new uint256[](1);
         rootIds[0] = 0;
         vm.expectRevert("Failing operation");
         pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
 
-        // Happy path for REMOVE_SCHEDULED
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
         pdpVerifier.scheduleRemovals(setId, rootIds, testExtraData);
 
-        // NEXT_PROVING_PERIOD operation
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NEXT_PROVING_PERIOD);
         vm.expectRevert("Failing operation");
         pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
 
-        // Happy path for NEXT_PROVING_PERIOD
         badListener.setBadOperation(PDPRecordKeeper.OperationType.NONE);
         pdpVerifier.nextProvingPeriod(setId, block.number + challengeFinalityDelay, testExtraData);
     }
