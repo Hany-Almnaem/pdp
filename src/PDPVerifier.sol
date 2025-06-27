@@ -265,7 +265,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         }
     }
 
-    function claimProofSetOwnership(uint256 setId) public {
+    function claimProofSetOwnership(uint256 setId, bytes calldata extraData) public {
         require(proofSetLive(setId), "Proof set not live");
         require(proofSetProposedOwner[setId] == msg.sender, "Only the proposed owner can claim ownership");
         address oldOwner = proofSetOwner[setId];
@@ -274,7 +274,7 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
         emit ProofSetOwnerChanged(setId, oldOwner, msg.sender);
         address listenerAddr = proofSetListener[setId];
         if (listenerAddr != address(0)) {
-            PDPListener(listenerAddr).ownerChanged(setId, oldOwner, msg.sender, "");
+            PDPListener(listenerAddr).ownerChanged(setId, oldOwner, msg.sender, extraData);
         }
     }
 
