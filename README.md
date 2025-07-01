@@ -28,7 +28,7 @@ The PDP service contract and the PDP verifier contracts are deployed on Filecoin
 - [PDP Service]([url](https://github.com/FilOzone/pdp/blob/main/src/SimplePDPService.sol)): [0x6170dE2b09b404776197485F3dc6c968Ef948505]([url](https://calibration.filfox.info/en/address/0x6170dE2b09b404776197485F3dc6c968Ef948505)) Note this has proving period every 30 minutes instead of every day
 
 ## Build
-Depends on [Foundry](https://github.com/foundry-rs/foundry) and npm for development.
+Depends on [Foundry](https://github.com/foundry-rs/foundry) for development.
 ```
 make build
 ```
