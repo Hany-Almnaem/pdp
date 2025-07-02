@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
+import {Cids} from "../Cids.sol";
+
 /// @title IPDPTypes
 /// @notice Shared types for PDP contracts and consumers
 interface IPDPTypes {
     struct RootData {
-        // Cids.Cid is imported from Cids.sol, but for interface, use bytes or a minimal struct if needed
-        bytes root; // Use bytes for Cid in interface to avoid deep dependency
+        Cids.Cid root;
         uint256 rawSize;
     }
 
