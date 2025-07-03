@@ -344,7 +344,6 @@ contract PDPVerifier is Initializable, UUPSUpgradeable, OwnableUpgradeable {
 
 
         for (uint256 i = 0; i < nRoots; i++) {
-            // Decode bytes to Cids.Cid at the interface boundary
             addOneRoot(setId, i, rootData[i].root, rootData[i].rawSize);
             rootIds[i] = firstAdded + i;
         }
